@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#f9fafb">
+<title>Monitor Aerator — Riset DO</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+<style>
+  :root {
+    --bg: #f9fafb; --surface: #ffffff; --line: #e5e7eb;
+    --text-main: #111827; --text-muted: #6b7280;
+    --blue: #2563eb; --orange: #f59e0b; --red: #ef4444; --green: #10b981;
+    --radius: 16px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text-main); font-family: 'Space Grotesk', system-ui, sans-serif; min-height: 100vh; -webkit-font-smoothing: antialiased; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  .wrap { max-width: 600px; margin: 0 auto; padding: 16px 16px 40px; }
+
+  header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
+  .brand h1 { font-size: 16px; font-weight: 700; margin-bottom: 2px; }
+  .brand p { font-size: 11px; color: var(--text-muted); }
+  .header-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+  .status-indicator { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--text-muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
+  .dot.live { background: var(--green); }
+  .dot.warn { background: var(--orange); }
+  .btn-export { background: var(--surface); border: 1px solid var(--line); color: var(--text-main); padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 600; font-family: inherit; cursor: pointer; }
+  .btn-export:active { background: var(--line); }
+
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; margin-bottom: 12px; }
+  .hero-layout { display: flex; justify-content: space-between; align-items: center; }
+  .hero-label { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .hero-value { font-size: 48px; font-weight: 700; color: var(--blue); line-height: 1; display: flex; align-items: baseline; gap: 4px; }
+  .hero-value .unit { font-size: 16px; color: var(--text-muted); font-weight: 500; }
+
+  .ring-container { position: relative; width: 80px; height: 80px; }
+  .ring-container svg { transform: rotate(-90deg); width: 100%; height: 100%; }
+  .ring-track { stroke: var(--line); }
+  .ring-value { stroke: var(--blue); stroke-linecap: round; transition: stroke-dashoffset .6s ease; }
+  .ring-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .ring-center .pct { font-size: 16px; font-weight: 700; color: var(--text-main); }
+  .ring-center .cap { font-size: 9px; font-weight: 600; color: var(--text-muted); }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .mini-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
+  .mini-label { font-size: 11px; color: var(--text-muted); margin-bottom: 2px; font-weight: 500; }
+  .mini-value { font-size: 18px; font-weight: 600; color: var(--text-main); }
+
+  .chart-header { font-size: 13px; font-weight: 600; color: var(--text-main); margin-bottom: 12px; display: flex; justify-content: space-between; }
+  .chart-header span { color: var(--text-muted); font-weight: 500; }
+  .chart-container canvas { width: 100%; height: 140px; display: block; }
+  .is-warn { border-color: var(--orange); background: #fffbeb; }
+  .is-crit { border-color: var(--red); background: #fef2f2; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <h1>Riset Aerator</h1>
+      <p id="lastUpdate">Mengambil riwayat data...</p>
+    </div>
+    <div class="header-actions">
+      <button id="exportExcelBtn" class="btn-export">Unduh Excel</button>
+      <div class="status-indicator">
+        <span class="dot" id="statusDot"></span>
+        <span id="statusText">Sinkronisasi</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="card" id="cardDo">
+    <div class="hero-layout">
+      <div>
+        <div class="hero-label">Dissolved Oxygen</div>
+        <div class="hero-value mono"><span id="doValue">--</span><span class="unit">mg/L</span></div>
+      </div>
+      <div class="ring-container">
+        <svg viewBox="0 0 100 100">
+          <circle class="ring-track" cx="50" cy="50" r="42" fill="none" stroke-width="8"></circle>
+          <circle class="ring-value" id="ringValue" cx="50" cy="50" r="42" fill="none" stroke-width="8" stroke-dasharray="263.89" stroke-dashoffset="263.89"></circle>
+        </svg>
+        <div class="ring-center"><span class="pct mono" id="satValue">--%</span><span class="cap">Saturasi</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="mini-card"><div class="mini-label">Suhu DO</div><div class="mini-value mono" id="tempDoValue">-- °C</div></div>
+    <div class="mini-card"><div class="mini-label">Suhu Air (DS18B20)</div><div class="mini-value mono" id="tempDsValue">-- °C</div></div>
+  </div>
+
+  <div class="card">
+    <div class="chart-header">Tren DO (mg/L) <span class="mono" id="doValue2">--</span></div>
+    <div class="chart-container"><canvas id="sparkDo"></canvas></div>
+  </div>
+
+  <div class="card">
+    <div class="chart-header">Tren Suhu Air (°C) <span class="mono" id="tempDsValue2">--</span></div>
+    <div class="chart-container"><canvas id="sparkTemp"></canvas></div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  // ================= KONFIGURASI =================
+  var MQTT_HOST = "5fc256d8cf06470999e59076d5dcc1a6.s1.eu.hivemq.cloud";
+  var MQTT_WSS_PORT = 8884; 
+  var MQTT_USER = "RISETAERATOR";
+  var MQTT_PASS = "RISETAERATOR1";
+  var MQTT_TOPIC = "riset/aerator/data";
+  var CLIENT_ID = "web_monitor_hp_" + Math.random().toString(16).slice(2, 10);
+  
+  // URL DATABASE GOOGLE SHEETS 24 JAM
+  var GAS_URL = "https://script.google.com/macros/s/AKfycby4rX2FX8z9QZMnejDBQo6WcPml0354Pc_6lahIs2J2GL8FbBxLjlYNuPs8LAhUOvV8/exec";
+
+  var history = { do: [], tempDs: [] };
+  var HISTORY_LEN = 100; // Maksimal titik grafik di layar
+  var lastSampleAt = 0;
+  var SAMPLE_INTERVAL_MS = 3 * 60 * 1000; 
+
+  function setStatus(kind, text){
+    var dot = document.getElementById('statusDot');
+    var label = document.getElementById('statusText');
+    dot.className = 'dot' + (kind ? ' ' + kind : '');
+    label.textContent = text;
+  }
+
+  function fmt(n, d){ return (n === null || n === undefined || isNaN(n)) ? '--' : Number(n).toFixed(d === undefined ? 2 : d); }
+  function fmtTime(t){ return new Date(t).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' }); }
+
+  function updateRing(pct){
+    var offset = 263.89 - (Math.max(0, Math.min(100, pct)) / 100) * 263.89;
+    document.getElementById('ringValue').style.strokeDashoffset = offset;
+  }
+
+  function drawChart(canvas, points, color){
+    var ctx = canvas.getContext('2d');
+    var dpr = window.devicePixelRatio || 1;
+    var w = canvas.clientWidth, h = canvas.clientHeight || 140;
+    canvas.width = w * dpr; canvas.height = h * dpr;
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,w,h);
+    ctx.font = '10px "IBM Plex Mono", monospace';
+
+    if (points.length === 0){
+      ctx.fillStyle = '#9ca3af'; ctx.textAlign = 'center'; ctx.fillText('Memuat riwayat...', w/2, h/2);
+      return;
+    }
+
+    var padLeft = 28, padRight = 5, padTop = 10, padBottom = 20;
+    var plotW = w - padLeft - padRight, plotH = h - padTop - padBottom;
+    var values = points.map(function(p){ return p.v; });
+    var min = Math.min.apply(null, values), max = Math.max.apply(null, values);
+    if (min === max){ min -= 1; max += 1; }
+
+    ctx.strokeStyle = '#f3f4f6'; ctx.fillStyle = '#9ca3af'; ctx.textAlign = 'left';
+    [max, (min+max)/2, min].forEach(function(val){
+      var y = padTop + plotH - ((val - min) / (max - min)) * plotH;
+      ctx.beginPath(); ctx.moveTo(padLeft, y); ctx.lineTo(w - padRight, y); ctx.stroke();
+      ctx.fillText(val.toFixed(1), 0, y + 3);
+    });
+
+    if (points.length < 2) return;
+    var coords = points.map(function(p, i){ return { x: padLeft + (i / (points.length - 1)) * plotW, y: padTop + plotH - ((p.v - min) / (max - min)) * plotH }; });
+
+    ctx.beginPath(); ctx.moveTo(coords[0].x, padTop + plotH);
+    coords.forEach(function(c){ ctx.lineTo(c.x, c.y); });
+    ctx.lineTo(coords[coords.length - 1].x, padTop + plotH); ctx.closePath();
+    var grad = ctx.createLinearGradient(0, padTop, 0, padTop + plotH);
+    grad.addColorStop(0, color + '33'); grad.addColorStop(1, color + '00');
+    ctx.fillStyle = grad; ctx.fill();
+
+    ctx.beginPath(); coords.forEach(function(c, i){ if (i === 0) ctx.moveTo(c.x, c.y); else ctx.lineTo(c.x, c.y); });
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+    var last = coords[coords.length - 1];
+    ctx.beginPath(); ctx.arc(last.x, last.y, 3, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
+
+    ctx.fillStyle = '#9ca3af'; ctx.textAlign = 'left'; ctx.fillText(fmtTime(points[0].t), padLeft, h - 4);
+    ctx.textAlign = 'right'; ctx.fillText(fmtTime(points[points.length - 1].t), w - padRight, h - 4);
+  }
+
+  function pushHistory(arr, val, t){
+    arr.push({ v: val, t: t });
+    if (arr.length > HISTORY_LEN) arr.shift();
+  }
+
+  function render(payload, isHistory = false){
+    var doVal = payload.do, sat = payload.saturation, tDo = payload.tempDO, tDs = payload.tempDS18B20;
+    
+    // Update Angka Live
+    document.getElementById('doValue').textContent = fmt(doVal);
+    document.getElementById('doValue2').textContent = fmt(doVal);
+    document.getElementById('satValue').textContent = fmt(sat, 0) + '%';
+    document.getElementById('tempDoValue').textContent = fmt(tDo) + ' °C';
+    document.getElementById('tempDsValue').textContent = fmt(tDs) + ' °C';
+    document.getElementById('tempDsValue2').textContent = fmt(tDs);
+    updateRing(sat);
+
+    var card = document.getElementById('cardDo');
+    card.classList.remove('is-warn','is-crit');
+    if (typeof doVal === 'number' && doVal < 3) card.classList.add('is-crit');
+    else if (typeof doVal === 'number' && doVal < 5) card.classList.add('is-warn');
+
+    // Jika ini data live dari MQTT (bukan saat awal memuat riwayat), tambahkan ke grafik
+    if(!isHistory) {
+        var nowMs = Date.now();
+        if (lastSampleAt === 0 || nowMs - lastSampleAt >= SAMPLE_INTERVAL_MS){
+          lastSampleAt = nowMs;
+          if (typeof doVal === 'number') pushHistory(history.do, doVal, nowMs);
+          if (typeof tDs === 'number') pushHistory(history.tempDs, tDs, nowMs);
+        }
+        drawChart(document.getElementById('sparkDo'), history.do, '#2563eb'); 
+        drawChart(document.getElementById('sparkTemp'), history.tempDs, '#f59e0b');
+        document.getElementById('lastUpdate').textContent = 'Live Terakhir: ' + new Date().toLocaleTimeString('id-ID');
+    }
+  }
+
+  // ==== 1. AMBIL RIWAYAT MASA LALU DARI GOOGLE SHEETS ====
+  function loadHistory() {
+    setStatus('warn', 'Ambil Riwayat');
+    fetch(GAS_URL)
+      .then(response => response.json())
+      .then(data => {
+        if(data.length > 0) {
+            history.do = []; history.tempDs = [];
+            data.forEach(item => {
+                history.do.push({t: item.t, v: item.do});
+                history.tempDs.push({t: item.t, v: item.tempDs});
+            });
+            // Tampilkan angka terakhir dari riwayat ke UI
+            var lastData = data[data.length-1];
+            render({do: lastData.do, saturation: lastData.sat, tempDO: lastData.tempDO, tempDS18B20: lastData.tempDs}, true);
+            
+            drawChart(document.getElementById('sparkDo'), history.do, '#2563eb');
+            drawChart(document.getElementById('sparkTemp'), history.tempDs, '#f59e0b');
+            document.getElementById('lastUpdate').textContent = 'Riwayat Dimuat';
+        }
+        connectMQTT(); // Setelah riwayat selesai, hubungkan ke MQTT untuk Live
+      })
+      .catch(err => {
+        console.error('Gagal memuat riwayat Google Sheets', err);
+        connectMQTT(); // Tetap jalankan MQTT meski riwayat gagal
+      });
+  }
+
+  // ==== 2. KONEKSI MQTT UNTUK DATA LIVE ====
+  function connectMQTT(){
+    setStatus('warn', 'Menghubungkan');
+    var client = mqtt.connect('wss://' + MQTT_HOST + ':' + MQTT_WSS_PORT + '/mqtt', {
+      username: MQTT_USER, password: MQTT_PASS, clientId: CLIENT_ID, clean: true, reconnectPeriod: 3000
+    });
+
+    client.on('connect', function(){
+      setStatus('live', 'Live');
+      client.subscribe(MQTT_TOPIC);
+    });
+    client.on('reconnect', function(){ setStatus('warn', 'Menyambung'); });
+    client.on('close', function(){ setStatus('', 'Terputus'); });
+    client.on('message', function(topic, message){
+      try{ render(JSON.parse(message.toString())); }catch(e){}
+    });
+  }
+
+  // ==== EXPORT EXCEL ====
+  document.getElementById('exportExcelBtn').addEventListener('click', function() {
+    if(history.do.length === 0) return alert("Belum ada data.");
+    var dataToExport = [];
+    var maxLen = Math.max(history.do.length, history.tempDs.length);
+    for(var i=0; i<maxLen; i++) {
+        var row = {};
+        if(history.do[i]) { row['Waktu'] = new Date(history.do[i].t).toLocaleString('id-ID'); row['DO (mg/L)'] = history.do[i].v; }
+        if(history.tempDs[i]) { if(!row['Waktu']) row['Waktu'] = new Date(history.tempDs[i].t).toLocaleString('id-ID'); row['Suhu Air (°C)'] = history.tempDs[i].v; }
+        dataToExport.push(row);
+    }
+    var workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(dataToExport), "Data");
+    XLSX.writeFile(workbook, "Riset_Aerator.xlsx");
+  });
+
+  window.addEventListener('resize', function(){
+    drawChart(document.getElementById('sparkDo'), history.do, '#2563eb');
+    drawChart(document.getElementById('sparkTemp'), history.tempDs, '#f59e0b');
+  });
+
+  // Mulai dengan mengambil riwayat dulu
+  loadHistory();
+})();
+</script>
+</body>
+</html>
