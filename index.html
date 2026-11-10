@@ -1,300 +1,2112 @@
+
 <!DOCTYPE html>
 <html lang="id">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#f9fafb">
+
 <title>Monitor Aerator — Riset DO</title>
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
 <style>
-  :root {
-    --bg: #f9fafb; --surface: #ffffff; --line: #e5e7eb;
-    --text-main: #111827; --text-muted: #6b7280;
-    --blue: #2563eb; --orange: #f59e0b; --red: #ef4444; --green: #10b981;
-    --radius: 16px;
+
+:root {
+  --bg: #f9fafb;
+  --surface: #ffffff;
+  --line: #e5e7eb;
+  --text-main: #111827;
+  --text-muted: #6b7280;
+
+  --blue: #2563eb;
+  --orange: #f59e0b;
+  --red: #ef4444;
+  --green: #10b981;
+
+  --radius: 16px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text-main);
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+.mono {
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.wrap {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 16px 16px 40px;
+}
+
+/* HEADER */
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.brand h1 {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.brand p {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+.header-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--red);
+}
+
+.dot.live {
+  background: var(--green);
+}
+
+.dot.warn {
+  background: var(--orange);
+}
+
+.btn-export {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--text-main);
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* CARD */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px;
+  margin-bottom: 12px;
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.section-subtitle {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: -8px;
+  margin-bottom: 14px;
+}
+
+/* HERO DO */
+
+.hero-layout {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.hero-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: 5px;
+}
+
+.hero-value {
+  font-size: 46px;
+  font-weight: 700;
+  color: var(--blue);
+  line-height: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.hero-value .unit {
+  font-size: 15px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.ring-container {
+  position: relative;
+  width: 80px;
+  height: 80px;
+}
+
+.ring-container svg {
+  transform: rotate(-90deg);
+  width: 100%;
+  height: 100%;
+}
+
+.ring-track {
+  stroke: var(--line);
+}
+
+.ring-value {
+  stroke: var(--blue);
+  stroke-linecap: round;
+  transition: stroke-dashoffset .6s ease;
+}
+
+.ring-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.ring-center .pct {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.ring-center .cap {
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
+/* GRID */
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+/* MINI CARD */
+
+.mini-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 13px;
+  min-width: 0;
+}
+
+.mini-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-bottom: 5px;
+  font-weight: 500;
+}
+
+.mini-value {
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--text-main);
+  overflow-wrap: anywhere;
+}
+
+.mini-unit {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* STATUS */
+
+.state {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  margin-top: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #f3f4f6;
+  color: var(--text-muted);
+}
+
+.state.normal {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.state.warn {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.state.crit {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+/* RELAY */
+
+.relay-layout {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.relay-value {
+  font-size: 25px;
+  font-weight: 700;
+}
+
+.relay-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 7px 12px;
+  border-radius: 8px;
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.relay-pill.off {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+/* WARNINGS */
+
+.is-warn {
+  border-color: var(--orange);
+  background: #fffbeb;
+}
+
+.is-crit {
+  border-color: var(--red);
+  background: #fef2f2;
+}
+
+/* CHART */
+
+.chart-header {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.chart-header span {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.chart-container canvas {
+  width: 100%;
+  height: 140px;
+  display: block;
+}
+
+/* FOOTER */
+
+.footer {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 10px;
+  margin-top: 20px;
+}
+
+/* RESPONSIVE */
+
+@media (max-width: 390px) {
+
+  .grid-3 {
+    grid-template-columns: 1fr 1fr;
   }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: var(--text-main); font-family: 'Space Grotesk', system-ui, sans-serif; min-height: 100vh; -webkit-font-smoothing: antialiased; }
-  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
-  .wrap { max-width: 600px; margin: 0 auto; padding: 16px 16px 40px; }
 
-  header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
-  .brand h1 { font-size: 16px; font-weight: 700; margin-bottom: 2px; }
-  .brand p { font-size: 11px; color: var(--text-muted); }
-  .header-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
-  .status-indicator { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--text-muted); }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
-  .dot.live { background: var(--green); }
-  .dot.warn { background: var(--orange); }
-  .btn-export { background: var(--surface); border: 1px solid var(--line); color: var(--text-main); padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 600; font-family: inherit; cursor: pointer; }
-  .btn-export:active { background: var(--line); }
+  .hero-value {
+    font-size: 38px;
+  }
 
-  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; margin-bottom: 12px; }
-  .hero-layout { display: flex; justify-content: space-between; align-items: center; }
-  .hero-label { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
-  .hero-value { font-size: 48px; font-weight: 700; color: var(--blue); line-height: 1; display: flex; align-items: baseline; gap: 4px; }
-  .hero-value .unit { font-size: 16px; color: var(--text-muted); font-weight: 500; }
+  .mini-value {
+    font-size: 17px;
+  }
 
-  .ring-container { position: relative; width: 80px; height: 80px; }
-  .ring-container svg { transform: rotate(-90deg); width: 100%; height: 100%; }
-  .ring-track { stroke: var(--line); }
-  .ring-value { stroke: var(--blue); stroke-linecap: round; transition: stroke-dashoffset .6s ease; }
-  .ring-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-  .ring-center .pct { font-size: 16px; font-weight: 700; color: var(--text-main); }
-  .ring-center .cap { font-size: 9px; font-weight: 600; color: var(--text-muted); }
+}
 
-  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
-  .mini-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
-  .mini-label { font-size: 11px; color: var(--text-muted); margin-bottom: 2px; font-weight: 500; }
-  .mini-value { font-size: 18px; font-weight: 600; color: var(--text-main); }
-
-  .chart-header { font-size: 13px; font-weight: 600; color: var(--text-main); margin-bottom: 12px; display: flex; justify-content: space-between; }
-  .chart-header span { color: var(--text-muted); font-weight: 500; }
-  .chart-container canvas { width: 100%; height: 140px; display: block; }
-  .is-warn { border-color: var(--orange); background: #fffbeb; }
-  .is-crit { border-color: var(--red); background: #fef2f2; }
 </style>
 </head>
+
 <body>
+
 <div class="wrap">
 
+  <!-- ========================================= -->
+  <!-- HEADER -->
+  <!-- ========================================= -->
+
   <header>
+
     <div class="brand">
+
       <h1>Riset Aerator</h1>
-      <p id="lastUpdate">Mengambil riwayat data...</p>
+
+      <p id="lastUpdate">
+        Mengambil riwayat data...
+      </p>
+
     </div>
+
     <div class="header-actions">
-      <button id="exportExcelBtn" class="btn-export">Unduh Excel</button>
+
+      <button id="exportExcelBtn" class="btn-export">
+        Unduh Excel
+      </button>
+
       <div class="status-indicator">
+
         <span class="dot" id="statusDot"></span>
-        <span id="statusText">Sinkronisasi</span>
+
+        <span id="statusText">
+          Sinkronisasi
+        </span>
+
       </div>
+
     </div>
+
   </header>
 
+
+  <!-- ========================================= -->
+  <!-- DISSOLVED OXYGEN -->
+  <!-- ========================================= -->
+
   <div class="card" id="cardDo">
+
     <div class="hero-layout">
+
       <div>
-        <div class="hero-label">Dissolved Oxygen</div>
-        <div class="hero-value mono"><span id="doValue">--</span><span class="unit">mg/L</span></div>
+
+        <div class="hero-label">
+          Dissolved Oxygen
+        </div>
+
+        <div class="hero-value mono">
+
+          <span id="doValue">--</span>
+
+          <span class="unit">
+            mg/L
+          </span>
+
+        </div>
+
+        <span class="state" id="doStatus">
+          Menunggu data
+        </span>
+
       </div>
+
       <div class="ring-container">
+
         <svg viewBox="0 0 100 100">
-          <circle class="ring-track" cx="50" cy="50" r="42" fill="none" stroke-width="8"></circle>
-          <circle class="ring-value" id="ringValue" cx="50" cy="50" r="42" fill="none" stroke-width="8" stroke-dasharray="263.89" stroke-dashoffset="263.89"></circle>
+
+          <circle
+            class="ring-track"
+            cx="50"
+            cy="50"
+            r="42"
+            fill="none"
+            stroke-width="8">
+          </circle>
+
+          <circle
+            class="ring-value"
+            id="ringValue"
+            cx="50"
+            cy="50"
+            r="42"
+            fill="none"
+            stroke-width="8"
+            stroke-dasharray="263.89"
+            stroke-dashoffset="263.89">
+          </circle>
+
         </svg>
-        <div class="ring-center"><span class="pct mono" id="satValue">--%</span><span class="cap">Saturasi</span></div>
+
+        <div class="ring-center">
+
+          <span class="pct mono" id="satValue">
+            --%
+          </span>
+
+          <span class="cap">
+            Saturasi
+          </span>
+
+        </div>
+
       </div>
+
     </div>
+
+  </div>
+
+
+  <!-- ========================================= -->
+  <!-- KUALITAS AIR -->
+  <!-- ========================================= -->
+
+  <div class="section-title">
+    Parameter Kualitas Air
   </div>
 
   <div class="grid-2">
-    <div class="mini-card"><div class="mini-label">Suhu DO</div><div class="mini-value mono" id="tempDoValue">-- °C</div></div>
-    <div class="mini-card"><div class="mini-label">Suhu Air (DS18B20)</div><div class="mini-value mono" id="tempDsValue">-- °C</div></div>
+
+    <div class="mini-card" id="cardPH">
+
+      <div class="mini-label">
+        Derajat Keasaman
+      </div>
+
+      <div class="mini-value mono">
+        <span id="phValue">--</span>
+      </div>
+
+      <span class="state" id="phStatus">
+        Menunggu data
+      </span>
+
+    </div>
+
+
+    <div class="mini-card" id="cardTemp">
+
+      <div class="mini-label">
+        Suhu Air DS18B20
+      </div>
+
+      <div class="mini-value mono">
+        <span id="tempDsValue">--</span>
+        <span class="mini-unit">°C</span>
+      </div>
+
+      <span class="state" id="tempStatus">
+        Menunggu data
+      </span>
+
+    </div>
+
+
+    <div class="mini-card">
+
+      <div class="mini-label">
+        Suhu Sensor DO
+      </div>
+
+      <div class="mini-value mono">
+        <span id="tempDoValue">--</span>
+        <span class="mini-unit">°C</span>
+      </div>
+
+    </div>
+
+
+    <div class="mini-card">
+
+      <div class="mini-label">
+        Saturasi Oksigen
+      </div>
+
+      <div class="mini-value mono">
+        <span id="satValue2">--</span>
+        <span class="mini-unit">%</span>
+      </div>
+
+    </div>
+
   </div>
 
-  <div class="card">
-    <div class="chart-header">Tren DO (mg/L) <span class="mono" id="doValue2">--</span></div>
-    <div class="chart-container"><canvas id="sparkDo"></canvas></div>
-  </div>
+
+  <!-- ========================================= -->
+  <!-- STATUS AERATOR -->
+  <!-- ========================================= -->
 
   <div class="card">
-    <div class="chart-header">Tren Suhu Air (°C) <span class="mono" id="tempDsValue2">--</span></div>
-    <div class="chart-container"><canvas id="sparkTemp"></canvas></div>
+
+    <div class="section-title">
+      Kontrol Aerator Otomatis
+    </div>
+
+    <div class="relay-layout">
+
+      <div>
+
+        <div class="mini-label">
+          Status Relay GPIO26
+        </div>
+
+        <div class="relay-value" id="relayText">
+          Menunggu data
+        </div>
+
+        <div class="mini-label" style="margin-top:5px">
+          Pengendalian berdasarkan nilai DO
+        </div>
+
+      </div>
+
+      <div>
+
+        <span class="relay-pill" id="relayBadge">
+          --
+        </span>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- ========================================= -->
+  <!-- PZEM -->
+  <!-- ========================================= -->
+
+  <div class="section-title">
+    Monitoring Energi Listrik (PZEM-004T)
+  </div>
+
+  <div class="grid-2">
+
+    <div class="mini-card">
+
+      <div class="mini-label">
+        Tegangan
+      </div>
+
+      <div class="mini-value mono">
+        <span id="voltageValue">--</span>
+        <span class="mini-unit">V</span>
+      </div>
+
+    </div>
+
+
+    <div class="mini-card">
+
+      <div class="mini-label">
+        Arus
+      </div>
+
+      <div class="mini-value mono">
+        <span id="currentValue">--</span>
+        <span class="mini-unit">A</span>
+      </div>
+
+    </div>
+
+
+    <div class="mini-card">
+
+      <div class="mini-label">
+        Daya Aktif
+      </div>
+
+      <div class="mini-value mono">
+        <span id="powerValue">--</span>
+        <span class="mini-unit">W</span>
+      </div>
+
+    </div>
+
+
+    <div class="mini-card">
+
+      <div class="mini-label">
+        Energi
+      </div>
+
+      <div class="mini-value mono">
+        <span id="energyValue">--</span>
+        <span class="mini-unit">kWh</span>
+      </div>
+
+    </div>
+
+
+    <div class="mini-card">
+
+      <div class="mini-label">
+        Frekuensi
+      </div>
+
+      <div class="mini-value mono">
+        <span id="frequencyValue">--</span>
+        <span class="mini-unit">Hz</span>
+      </div>
+
+    </div>
+
+
+    <div class="mini-card">
+
+      <div class="mini-label">
+        Faktor Daya
+      </div>
+
+      <div class="mini-value mono">
+        <span id="pfValue">--</span>
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- ========================================= -->
+  <!-- STATUS KUALITAS AIR -->
+  <!-- ========================================= -->
+
+  <div class="card">
+
+    <div class="section-title">
+      Status Kondisi Air
+    </div>
+
+    <div class="grid-2">
+
+      <div>
+        <div class="mini-label">Status pH</div>
+        <span class="state" id="qualityPH">
+          --
+        </span>
+      </div>
+
+      <div>
+        <div class="mini-label">Status Suhu</div>
+        <span class="state" id="qualityTemp">
+          --
+        </span>
+      </div>
+
+      <div>
+        <div class="mini-label">Status DO</div>
+        <span class="state" id="qualityDO">
+          --
+        </span>
+      </div>
+
+      <div>
+        <div class="mini-label">Status Sistem</div>
+        <span class="state" id="qualitySystem">
+          Menunggu data
+        </span>
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- ========================================= -->
+  <!-- GRAFIK DO -->
+  <!-- ========================================= -->
+
+  <div class="card">
+
+    <div class="chart-header">
+
+      Tren Dissolved Oxygen (mg/L)
+
+      <span class="mono" id="doValue2">
+        --
+      </span>
+
+    </div>
+
+    <div class="chart-container">
+
+      <canvas id="sparkDo"></canvas>
+
+    </div>
+
+  </div>
+
+
+  <!-- ========================================= -->
+  <!-- GRAFIK PH -->
+  <!-- ========================================= -->
+
+  <div class="card">
+
+    <div class="chart-header">
+
+      Tren pH Air
+
+      <span class="mono" id="phValue2">
+        --
+      </span>
+
+    </div>
+
+    <div class="chart-container">
+
+      <canvas id="sparkPH"></canvas>
+
+    </div>
+
+  </div>
+
+
+  <!-- ========================================= -->
+  <!-- GRAFIK SUHU -->
+  <!-- ========================================= -->
+
+  <div class="card">
+
+    <div class="chart-header">
+
+      Tren Suhu Air (°C)
+
+      <span class="mono" id="tempDsValue2">
+        --
+      </span>
+
+    </div>
+
+    <div class="chart-container">
+
+      <canvas id="sparkTemp"></canvas>
+
+    </div>
+
+  </div>
+
+
+  <!-- ========================================= -->
+  <!-- GRAFIK DAYA -->
+  <!-- ========================================= -->
+
+  <div class="card">
+
+    <div class="chart-header">
+
+      Tren Daya Aktif (W)
+
+      <span class="mono" id="powerValue2">
+        --
+      </span>
+
+    </div>
+
+    <div class="chart-container">
+
+      <canvas id="sparkPower"></canvas>
+
+    </div>
+
+  </div>
+
+
+  <div class="footer">
+
+    Sistem Monitoring Kualitas Air dan Energi Aerator
+    <br>
+    Berbasis ESP32 — MQTT HiveMQ
+
   </div>
 
 </div>
 
+
 <script>
-(function(){
-  // ================= KONFIGURASI =================
-  var MQTT_HOST = "5fc256d8cf06470999e59076d5dcc1a6.s1.eu.hivemq.cloud";
-  var MQTT_WSS_PORT = 8884; 
+
+(function() {
+
+  // =================================================
+  // 1. KONFIGURASI MQTT
+  // =================================================
+
+  var MQTT_HOST =
+    "5fc256d8cf06470999e59076d5dcc1a6.s1.eu.hivemq.cloud";
+
+  var MQTT_WSS_PORT = 8884;
+
   var MQTT_USER = "RISETAERATOR";
+
   var MQTT_PASS = "RISETAERATOR1";
+
   var MQTT_TOPIC = "riset/aerator/data";
-  var CLIENT_ID = "web_monitor_hp_" + Math.random().toString(16).slice(2, 10);
-  
-  // URL DATABASE GOOGLE SHEETS 24 JAM
-  var GAS_URL = "https://script.google.com/macros/s/AKfycby4rX2FX8z9QZMnejDBQo6WcPml0354Pc_6lahIs2J2GL8FbBxLjlYNuPs8LAhUOvV8/exec";
 
-  var history = { do: [], tempDs: [] };
-  var HISTORY_LEN = 100; // Maksimal titik grafik di layar
+  var CLIENT_ID =
+    "web_monitor_" + Math.random().toString(16).slice(2, 10);
+
+
+  // =================================================
+  // 2. GOOGLE SHEETS
+  // =================================================
+
+  var GAS_URL =
+    "https://script.google.com/macros/s/AKfycby4rX2FX8z9QZMnejDBQo6WcPml0354Pc_6lahIs2J2GL8FbBxLjlYNuPs8LAhUOvV8/exec";
+
+
+  // =================================================
+  // 3. SET POINT
+  // Harus sama dengan program ESP32
+  // =================================================
+
+  var PH_MIN = 7.5;
+  var PH_MAX = 8.5;
+
+  var TEMP_MIN = 28.0;
+  var TEMP_MAX = 32.0;
+
+  var DO_MIN = 5.0;
+
+
+  // =================================================
+  // 4. RIWAYAT DATA
+  // =================================================
+
+  var history = [];
+
+  var HISTORY_LEN = 100;
+
   var lastSampleAt = 0;
-  var SAMPLE_INTERVAL_MS = 3 * 60 * 1000; 
 
-  function setStatus(kind, text){
-    var dot = document.getElementById('statusDot');
-    var label = document.getElementById('statusText');
-    dot.className = 'dot' + (kind ? ' ' + kind : '');
-    label.textContent = text;
+  var SAMPLE_INTERVAL_MS = 3 * 60 * 1000;
+
+
+  // =================================================
+  // 5. FUNGSI BANTUAN
+  // =================================================
+
+  function el(id) {
+    return document.getElementById(id);
   }
 
-  function fmt(n, d){ return (n === null || n === undefined || isNaN(n)) ? '--' : Number(n).toFixed(d === undefined ? 2 : d); }
-  function fmtTime(t){ return new Date(t).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' }); }
 
-  function updateRing(pct){
-    var offset = 263.89 - (Math.max(0, Math.min(100, pct)) / 100) * 263.89;
-    document.getElementById('ringValue').style.strokeDashoffset = offset;
+  // Konversi data agar null tidak dianggap nol
+  function num(value) {
+
+    if (
+      value === null ||
+      value === undefined ||
+      value === ""
+    ) {
+      return null;
+    }
+
+    var n = Number(value);
+
+    return Number.isFinite(n) ? n : null;
   }
 
-  function drawChart(canvas, points, color){
-    var ctx = canvas.getContext('2d');
-    var dpr = window.devicePixelRatio || 1;
-    var w = canvas.clientWidth, h = canvas.clientHeight || 140;
-    canvas.width = w * dpr; canvas.height = h * dpr;
-    ctx.setTransform(dpr,0,0,dpr,0,0);
-    ctx.clearRect(0,0,w,h);
-    ctx.font = '10px "IBM Plex Mono", monospace';
 
-    if (points.length === 0){
-      ctx.fillStyle = '#9ca3af'; ctx.textAlign = 'center'; ctx.fillText('Memuat riwayat...', w/2, h/2);
+  function fmt(value, decimal) {
+
+    var n = num(value);
+
+    if (n === null) return "--";
+
+    return n.toFixed(decimal === undefined ? 2 : decimal);
+  }
+
+
+  function setStatus(kind, text) {
+
+    el("statusDot").className =
+      "dot" + (kind ? " " + kind : "");
+
+    el("statusText").textContent = text;
+  }
+
+
+  function setState(id, text, kind) {
+
+    var node = el(id);
+
+    node.textContent = text;
+
+    node.className =
+      "state" + (kind ? " " + kind : "");
+  }
+
+
+  function setCardState(id, kind) {
+
+    var card = el(id);
+
+    card.classList.remove("is-warn", "is-crit");
+
+    if (kind === "warn") {
+      card.classList.add("is-warn");
+    }
+
+    if (kind === "crit") {
+      card.classList.add("is-crit");
+    }
+  }
+
+
+  function updateRing(pct) {
+
+    var value = num(pct);
+
+    if (value === null) {
+
+      el("ringValue").style.strokeDashoffset = 263.89;
+
       return;
     }
 
-    var padLeft = 28, padRight = 5, padTop = 10, padBottom = 20;
-    var plotW = w - padLeft - padRight, plotH = h - padTop - padBottom;
-    var values = points.map(function(p){ return p.v; });
-    var min = Math.min.apply(null, values), max = Math.max.apply(null, values);
-    if (min === max){ min -= 1; max += 1; }
+    var bounded = Math.max(0, Math.min(100, value));
 
-    ctx.strokeStyle = '#f3f4f6'; ctx.fillStyle = '#9ca3af'; ctx.textAlign = 'left';
-    [max, (min+max)/2, min].forEach(function(val){
-      var y = padTop + plotH - ((val - min) / (max - min)) * plotH;
-      ctx.beginPath(); ctx.moveTo(padLeft, y); ctx.lineTo(w - padRight, y); ctx.stroke();
-      ctx.fillText(val.toFixed(1), 0, y + 3);
+    var offset =
+      263.89 - (bounded / 100) * 263.89;
+
+    el("ringValue").style.strokeDashoffset = offset;
+  }
+
+
+  function getTimestamp(value) {
+
+    if (value === null || value === undefined) {
+      return Date.now();
+    }
+
+    var n = Number(value);
+
+    if (Number.isFinite(n) && n > 0) {
+
+      return n < 1000000000000 ? n * 1000 : n;
+    }
+
+    var parsed = new Date(value).getTime();
+
+    return Number.isFinite(parsed) ? parsed : Date.now();
+  }
+
+
+  // =================================================
+  // 6. STATUS PARAMETER
+  // =================================================
+
+  function evaluatePH(value, suppliedStatus) {
+
+    if (num(suppliedStatus) !== null) {
+
+      var status = Number(suppliedStatus);
+
+      if (status === -1) return "error";
+
+      if (status === 0) return "low";
+
+      if (status === 2) return "high";
+
+      if (status === 1) return "normal";
+    }
+
+    var n = num(value);
+
+    if (n === null) return "error";
+
+    if (n < PH_MIN) return "low";
+
+    if (n > PH_MAX) return "high";
+
+    return "normal";
+  }
+
+
+  function evaluateTemp(value, suppliedStatus) {
+
+    if (num(suppliedStatus) !== null) {
+
+      var status = Number(suppliedStatus);
+
+      if (status === -1) return "error";
+
+      if (status === 0) return "low";
+
+      if (status === 2) return "high";
+
+      if (status === 1) return "normal";
+    }
+
+    var n = num(value);
+
+    if (n === null) return "error";
+
+    if (n < TEMP_MIN) return "low";
+
+    if (n > TEMP_MAX) return "high";
+
+    return "normal";
+  }
+
+
+  function evaluateDO(value, suppliedStatus) {
+
+    if (num(suppliedStatus) !== null) {
+
+      var status = Number(suppliedStatus);
+
+      if (status === -1) return "error";
+
+      if (status === 0) return "low";
+
+      if (status === 1) return "normal";
+    }
+
+    var n = num(value);
+
+    if (n === null) return "error";
+
+    if (n < DO_MIN) return "low";
+
+    return "normal";
+  }
+
+
+  function statusLabel(status, parameter) {
+
+    if (status === "error") return "Data tidak valid";
+
+    if (status === "low") return "Di bawah batas";
+
+    if (status === "high") return "Di atas batas";
+
+    return "Normal";
+  }
+
+
+  function statusClass(status) {
+
+    if (status === "error") return "";
+
+    if (status === "normal") return "normal";
+
+    if (status === "low" || status === "high") return "warn";
+
+    return "";
+  }
+
+
+  // =================================================
+  // 7. NORMALISASI DATA MQTT DAN GOOGLE SHEETS
+  // =================================================
+
+  function normalizePayload(payload) {
+
+    return {
+
+      ph: num(payload.ph),
+
+      do: num(payload.do),
+
+      saturation: num(
+        payload.saturation !== undefined
+          ? payload.saturation
+          : payload.sat
+      ),
+
+      tempDO: num(payload.tempDO),
+
+      tempDS18B20: num(
+        payload.tempDS18B20 !== undefined
+          ? payload.tempDS18B20
+          : payload.tempDs
+      ),
+
+      voltage: num(payload.voltage),
+
+      current: num(payload.current),
+
+      power: num(payload.power),
+
+      energy: num(payload.energy),
+
+      frequency: num(payload.frequency),
+
+      powerFactor: num(
+        payload.powerFactor !== undefined
+          ? payload.powerFactor
+          : payload.pf
+      ),
+
+      relay: num(payload.relay),
+
+      statusPH: num(payload.statusPH),
+
+      statusSuhu: num(payload.statusSuhu),
+
+      statusDO: num(payload.statusDO)
+
+    };
+
+  }
+
+
+  // =================================================
+  // 8. RENDER DATA KE DASHBOARD
+  // =================================================
+
+  function render(payload, isHistory) {
+
+    var data = normalizePayload(payload);
+
+
+    // ===============================================
+    // DO
+    // ===============================================
+
+    el("doValue").textContent =
+      fmt(data.do);
+
+    el("doValue2").textContent =
+      fmt(data.do);
+
+    el("satValue").textContent =
+      fmt(data.saturation, 0) + "%";
+
+    el("satValue2").textContent =
+      fmt(data.saturation, 0);
+
+    updateRing(data.saturation);
+
+    var doStatus =
+      evaluateDO(data.do, data.statusDO);
+
+    setState(
+      "doStatus",
+      statusLabel(doStatus),
+      statusClass(doStatus)
+    );
+
+    if (doStatus === "error") {
+      setCardState("cardDo", "crit");
+    }
+    else if (data.do !== null && data.do < 3) {
+      setCardState("cardDo", "crit");
+    }
+    else if (doStatus === "low") {
+      setCardState("cardDo", "warn");
+    }
+    else {
+      setCardState("cardDo", "");
+    }
+
+
+    // ===============================================
+    // pH
+    // ===============================================
+
+    el("phValue").textContent =
+      fmt(data.ph);
+
+    el("phValue2").textContent =
+      fmt(data.ph);
+
+    var phStatus =
+      evaluatePH(data.ph, data.statusPH);
+
+    setState(
+      "phStatus",
+      statusLabel(phStatus),
+      statusClass(phStatus)
+    );
+
+    setState(
+      "qualityPH",
+      statusLabel(phStatus),
+      statusClass(phStatus)
+    );
+
+    setCardState(
+      "cardPH",
+      phStatus === "error"
+        ? "crit"
+        : phStatus === "normal" ? "" : "warn"
+    );
+
+
+    // ===============================================
+    // SUHU AIR
+    // ===============================================
+
+    el("tempDsValue").textContent =
+      fmt(data.tempDS18B20);
+
+    el("tempDsValue2").textContent =
+      fmt(data.tempDS18B20);
+
+    el("tempDoValue").textContent =
+      fmt(data.tempDO);
+
+    var tempStatus =
+      evaluateTemp(data.tempDS18B20, data.statusSuhu);
+
+    setState(
+      "tempStatus",
+      statusLabel(tempStatus),
+      statusClass(tempStatus)
+    );
+
+    setState(
+      "qualityTemp",
+      statusLabel(tempStatus),
+      statusClass(tempStatus)
+    );
+
+    setCardState(
+      "cardTemp",
+      tempStatus === "error"
+        ? "crit"
+        : tempStatus === "normal" ? "" : "warn"
+    );
+
+
+    // ===============================================
+    // RELAY
+    // ===============================================
+
+    if (data.relay === null) {
+
+      el("relayText").textContent = "Tidak diketahui";
+
+      el("relayBadge").textContent = "--";
+
+      el("relayBadge").className = "relay-pill";
+
+    }
+    else if (data.relay === 1) {
+
+      el("relayText").textContent = "Aerator Menyala";
+
+      el("relayBadge").textContent = "RELAY ON";
+
+      el("relayBadge").className = "relay-pill";
+
+    }
+    else {
+
+      el("relayText").textContent = "Aerator Mati";
+
+      el("relayBadge").textContent = "RELAY OFF";
+
+      el("relayBadge").className = "relay-pill off";
+
+    }
+
+
+    // ===============================================
+    // PZEM
+    // ===============================================
+
+    el("voltageValue").textContent =
+      fmt(data.voltage, 1);
+
+    el("currentValue").textContent =
+      fmt(data.current, 2);
+
+    el("powerValue").textContent =
+      fmt(data.power, 1);
+
+    el("energyValue").textContent =
+      fmt(data.energy, 3);
+
+    el("frequencyValue").textContent =
+      fmt(data.frequency, 1);
+
+    el("pfValue").textContent =
+      fmt(data.powerFactor, 2);
+
+    el("powerValue2").textContent =
+      fmt(data.power, 1);
+
+
+    // ===============================================
+    // STATUS UMUM
+    // ===============================================
+
+    setState(
+      "qualityDO",
+      statusLabel(doStatus),
+      statusClass(doStatus)
+    );
+
+    var hasSensorError =
+      phStatus === "error" ||
+      tempStatus === "error" ||
+      doStatus === "error";
+
+    var hasWarning =
+      phStatus === "low" ||
+      phStatus === "high" ||
+      tempStatus === "low" ||
+      tempStatus === "high" ||
+      doStatus === "low";
+
+    if (hasSensorError) {
+
+      setState(
+        "qualitySystem",
+        "Sensor tidak valid",
+        "crit"
+      );
+
+    }
+    else if (hasWarning) {
+
+      setState(
+        "qualitySystem",
+        "Perlu perhatian",
+        "warn"
+      );
+
+    }
+    else {
+
+      setState(
+        "qualitySystem",
+        "Semua normal",
+        "normal"
+      );
+
+    }
+
+
+    // ===============================================
+    // DATA LIVE
+    // ===============================================
+
+    if (!isHistory) {
+
+      var now = Date.now();
+
+      if (
+        lastSampleAt === 0 ||
+        now - lastSampleAt >= SAMPLE_INTERVAL_MS
+      ) {
+
+        lastSampleAt = now;
+
+        pushHistory(data, now);
+      }
+
+      renderCharts();
+
+      el("lastUpdate").textContent =
+        "Live Terakhir: " +
+        new Date().toLocaleTimeString("id-ID");
+
+    }
+
+  }
+
+
+  // =================================================
+  // 9. RIWAYAT GRAFIK
+  // =================================================
+
+  function pushHistory(data, timestamp) {
+
+    history.push({
+
+      t: timestamp,
+
+      ph: data.ph,
+
+      do: data.do,
+
+      tempDs: data.tempDS18B20,
+
+      tempDO: data.tempDO,
+
+      power: data.power,
+
+      voltage: data.voltage,
+
+      current: data.current,
+
+      energy: data.energy,
+
+      frequency: data.frequency,
+
+      powerFactor: data.powerFactor,
+
+      saturation: data.saturation,
+
+      relay: data.relay
+
     });
+
+    if (history.length > HISTORY_LEN) {
+
+      history.shift();
+    }
+
+  }
+
+
+  // =================================================
+  // 10. FUNGSI GAMBAR GRAFIK
+  // =================================================
+
+  function drawChart(canvas, records, field, color) {
+
+    var ctx = canvas.getContext("2d");
+
+    var dpr = window.devicePixelRatio || 1;
+
+    var w = canvas.clientWidth;
+
+    var h = canvas.clientHeight || 140;
+
+    canvas.width = w * dpr;
+
+    canvas.height = h * dpr;
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    ctx.clearRect(0, 0, w, h);
+
+    ctx.font = '10px "IBM Plex Mono", monospace';
+
+    var points = records
+      .map(function(record) {
+
+        return {
+
+          v: num(record[field]),
+
+          t: record.t
+
+        };
+
+      })
+      .filter(function(point) {
+
+        return point.v !== null;
+
+      });
+
+
+    if (points.length === 0) {
+
+      ctx.fillStyle = "#9ca3af";
+
+      ctx.textAlign = "center";
+
+      ctx.fillText(
+        "Menunggu data...",
+        w / 2,
+        h / 2
+      );
+
+      return;
+
+    }
+
+
+    var padLeft = 32;
+
+    var padRight = 5;
+
+    var padTop = 10;
+
+    var padBottom = 20;
+
+    var plotW = w - padLeft - padRight;
+
+    var plotH = h - padTop - padBottom;
+
+    var values = points.map(function(p) {
+      return p.v;
+    });
+
+    var min = Math.min.apply(null, values);
+
+    var max = Math.max.apply(null, values);
+
+    if (min === max) {
+      min -= 1;
+      max += 1;
+    }
+
+
+    // Garis bantu grafik
+
+    ctx.strokeStyle = "#f3f4f6";
+
+    ctx.fillStyle = "#9ca3af";
+
+    ctx.textAlign = "left";
+
+    [max, (min + max) / 2, min].forEach(function(val) {
+
+      var y =
+        padTop +
+        plotH -
+        ((val - min) / (max - min)) * plotH;
+
+      ctx.beginPath();
+
+      ctx.moveTo(padLeft, y);
+
+      ctx.lineTo(w - padRight, y);
+
+      ctx.stroke();
+
+      ctx.fillText(val.toFixed(1), 0, y + 3);
+
+    });
+
 
     if (points.length < 2) return;
-    var coords = points.map(function(p, i){ return { x: padLeft + (i / (points.length - 1)) * plotW, y: padTop + plotH - ((p.v - min) / (max - min)) * plotH }; });
 
-    ctx.beginPath(); ctx.moveTo(coords[0].x, padTop + plotH);
-    coords.forEach(function(c){ ctx.lineTo(c.x, c.y); });
-    ctx.lineTo(coords[coords.length - 1].x, padTop + plotH); ctx.closePath();
-    var grad = ctx.createLinearGradient(0, padTop, 0, padTop + plotH);
-    grad.addColorStop(0, color + '33'); grad.addColorStop(1, color + '00');
-    ctx.fillStyle = grad; ctx.fill();
 
-    ctx.beginPath(); coords.forEach(function(c, i){ if (i === 0) ctx.moveTo(c.x, c.y); else ctx.lineTo(c.x, c.y); });
-    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+    // Koordinat grafik
+
+    var coords = points.map(function(p, i) {
+
+      return {
+
+        x:
+          padLeft +
+          (i / (points.length - 1)) * plotW,
+
+        y:
+          padTop +
+          plotH -
+          ((p.v - min) / (max - min)) * plotH
+
+      };
+
+    });
+
+
+    // Area grafik
+
+    ctx.beginPath();
+
+    ctx.moveTo(
+      coords[0].x,
+      padTop + plotH
+    );
+
+    coords.forEach(function(c) {
+
+      ctx.lineTo(c.x, c.y);
+
+    });
+
+    ctx.lineTo(
+      coords[coords.length - 1].x,
+      padTop + plotH
+    );
+
+    ctx.closePath();
+
+
+    var grad = ctx.createLinearGradient(
+      0,
+      padTop,
+      0,
+      padTop + plotH
+    );
+
+    grad.addColorStop(0, color + "33");
+
+    grad.addColorStop(1, color + "00");
+
+    ctx.fillStyle = grad;
+
+    ctx.fill();
+
+
+    // Garis grafik
+
+    ctx.beginPath();
+
+    coords.forEach(function(c, i) {
+
+      if (i === 0) {
+
+        ctx.moveTo(c.x, c.y);
+
+      } else {
+
+        ctx.lineTo(c.x, c.y);
+
+      }
+
+    });
+
+    ctx.strokeStyle = color;
+
+    ctx.lineWidth = 2;
+
+    ctx.stroke();
+
+
+    // Titik terakhir
+
     var last = coords[coords.length - 1];
-    ctx.beginPath(); ctx.arc(last.x, last.y, 3, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
 
-    ctx.fillStyle = '#9ca3af'; ctx.textAlign = 'left'; ctx.fillText(fmtTime(points[0].t), padLeft, h - 4);
-    ctx.textAlign = 'right'; ctx.fillText(fmtTime(points[points.length - 1].t), w - padRight, h - 4);
+    ctx.beginPath();
+
+    ctx.arc(last.x, last.y, 3, 0, Math.PI * 2);
+
+    ctx.fillStyle = color;
+
+    ctx.fill();
+
+
+    // Waktu grafik
+
+    ctx.fillStyle = "#9ca3af";
+
+    ctx.textAlign = "left";
+
+    ctx.fillText(
+      fmtTime(points[0].t),
+      padLeft,
+      h - 4
+    );
+
+    ctx.textAlign = "right";
+
+    ctx.fillText(
+      fmtTime(points[points.length - 1].t),
+      w - padRight,
+      h - 4
+    );
+
   }
 
-  function pushHistory(arr, val, t){
-    arr.push({ v: val, t: t });
-    if (arr.length > HISTORY_LEN) arr.shift();
+
+  function fmtTime(timestamp) {
+
+    return new Date(timestamp).toLocaleTimeString(
+      "id-ID",
+      {
+        hour: "2-digit",
+        minute: "2-digit"
+      }
+    );
+
   }
 
-  function render(payload, isHistory = false){
-    var doVal = payload.do, sat = payload.saturation, tDo = payload.tempDO, tDs = payload.tempDS18B20;
-    
-    // Update Angka Live
-    document.getElementById('doValue').textContent = fmt(doVal);
-    document.getElementById('doValue2').textContent = fmt(doVal);
-    document.getElementById('satValue').textContent = fmt(sat, 0) + '%';
-    document.getElementById('tempDoValue').textContent = fmt(tDo) + ' °C';
-    document.getElementById('tempDsValue').textContent = fmt(tDs) + ' °C';
-    document.getElementById('tempDsValue2').textContent = fmt(tDs);
-    updateRing(sat);
 
-    var card = document.getElementById('cardDo');
-    card.classList.remove('is-warn','is-crit');
-    if (typeof doVal === 'number' && doVal < 3) card.classList.add('is-crit');
-    else if (typeof doVal === 'number' && doVal < 5) card.classList.add('is-warn');
+  // =================================================
+  // 11. RENDER SEMUA GRAFIK
+  // =================================================
 
-    // Jika ini data live dari MQTT (bukan saat awal memuat riwayat), tambahkan ke grafik
-    if(!isHistory) {
-        var nowMs = Date.now();
-        if (lastSampleAt === 0 || nowMs - lastSampleAt >= SAMPLE_INTERVAL_MS){
-          lastSampleAt = nowMs;
-          if (typeof doVal === 'number') pushHistory(history.do, doVal, nowMs);
-          if (typeof tDs === 'number') pushHistory(history.tempDs, tDs, nowMs);
-        }
-        drawChart(document.getElementById('sparkDo'), history.do, '#2563eb'); 
-        drawChart(document.getElementById('sparkTemp'), history.tempDs, '#f59e0b');
-        document.getElementById('lastUpdate').textContent = 'Live Terakhir: ' + new Date().toLocaleTimeString('id-ID');
-    }
+  function renderCharts() {
+
+    drawChart(
+      el("sparkDo"),
+      history,
+      "do",
+      "#2563eb"
+    );
+
+    drawChart(
+      el("sparkPH"),
+      history,
+      "ph",
+      "#10b981"
+    );
+
+    drawChart(
+      el("sparkTemp"),
+      history,
+      "tempDs",
+      "#f59e0b"
+    );
+
+    drawChart(
+      el("sparkPower"),
+      history,
+      "power",
+      "#ef4444"
+    );
+
   }
 
-  // ==== 1. AMBIL RIWAYAT MASA LALU DARI GOOGLE SHEETS ====
+
+  // =================================================
+  // 12. MEMUAT RIWAYAT GOOGLE SHEETS
+  // =================================================
+
   function loadHistory() {
-    setStatus('warn', 'Ambil Riwayat');
+
+    setStatus("warn", "Ambil Riwayat");
+
     fetch(GAS_URL)
-      .then(response => response.json())
-      .then(data => {
-        if(data.length > 0) {
-            history.do = []; history.tempDs = [];
-            data.forEach(item => {
-                history.do.push({t: item.t, v: item.do});
-                history.tempDs.push({t: item.t, v: item.tempDs});
-            });
-            // Tampilkan angka terakhir dari riwayat ke UI
-            var lastData = data[data.length-1];
-            render({do: lastData.do, saturation: lastData.sat, tempDO: lastData.tempDO, tempDS18B20: lastData.tempDs}, true);
-            
-            drawChart(document.getElementById('sparkDo'), history.do, '#2563eb');
-            drawChart(document.getElementById('sparkTemp'), history.tempDs, '#f59e0b');
-            document.getElementById('lastUpdate').textContent = 'Riwayat Dimuat';
+
+      .then(function(response) {
+
+        if (!response.ok) {
+
+          throw new Error("Gagal mengambil Google Sheets");
+
         }
-        connectMQTT(); // Setelah riwayat selesai, hubungkan ke MQTT untuk Live
+
+        return response.json();
+
       })
-      .catch(err => {
-        console.error('Gagal memuat riwayat Google Sheets', err);
-        connectMQTT(); // Tetap jalankan MQTT meski riwayat gagal
+
+      .then(function(data) {
+
+        if (!Array.isArray(data)) {
+
+          throw new Error("Format riwayat bukan array");
+
+        }
+
+        history = [];
+
+        data.forEach(function(item) {
+
+          var record = normalizePayload(item);
+
+          var timestamp = getTimestamp(
+            item.t !== undefined
+              ? item.t
+              : item.timestamp
+          );
+
+          pushHistory(record, timestamp);
+
+        });
+
+
+        // Menampilkan data terakhir dari riwayat
+
+        if (history.length > 0) {
+
+          var lastData = history[history.length - 1];
+
+          render({
+
+            ph: lastData.ph,
+
+            do: lastData.do,
+
+            saturation: lastData.saturation,
+
+            tempDO: lastData.tempDO,
+
+            tempDS18B20: lastData.tempDs,
+
+            voltage: lastData.voltage,
+
+            current: lastData.current,
+
+            power: lastData.power,
+
+            energy: lastData.energy,
+
+            frequency: lastData.frequency,
+
+            powerFactor: lastData.powerFactor,
+
+            relay: lastData.relay
+
+          }, true);
+
+          el("lastUpdate").textContent =
+            "Riwayat berhasil dimuat";
+
+        }
+
+
+        renderCharts();
+
+        // Mulai menghitung interval sampel live
+        lastSampleAt = Date.now();
+
+        connectMQTT();
+
+      })
+
+      .catch(function(error) {
+
+        console.error(
+          "Gagal memuat riwayat:",
+          error
+        );
+
+        connectMQTT();
+
       });
+
   }
 
-  // ==== 2. KONEKSI MQTT UNTUK DATA LIVE ====
-  function connectMQTT(){
-    setStatus('warn', 'Menghubungkan');
-    var client = mqtt.connect('wss://' + MQTT_HOST + ':' + MQTT_WSS_PORT + '/mqtt', {
-      username: MQTT_USER, password: MQTT_PASS, clientId: CLIENT_ID, clean: true, reconnectPeriod: 3000
+
+  // =================================================
+  // 13. KONEKSI MQTT HIVEMQ
+  // =================================================
+
+  function connectMQTT() {
+
+    setStatus("warn", "Menghubungkan MQTT");
+
+    var client = mqtt.connect(
+
+      "wss://" +
+      MQTT_HOST +
+      ":" +
+      MQTT_WSS_PORT +
+      "/mqtt",
+
+      {
+
+        username: MQTT_USER,
+
+        password: MQTT_PASS,
+
+        clientId: CLIENT_ID,
+
+        clean: true,
+
+        reconnectPeriod: 3000,
+
+        connectTimeout: 10000
+
+      }
+
+    );
+
+
+    client.on("connect", function() {
+
+      setStatus("live", "Live");
+
+      client.subscribe(
+        MQTT_TOPIC,
+        function(error) {
+
+          if (error) {
+
+            setStatus("warn", "Gagal Subscribe");
+
+          }
+
+        }
+      );
+
     });
 
-    client.on('connect', function(){
-      setStatus('live', 'Live');
-      client.subscribe(MQTT_TOPIC);
+
+    client.on("reconnect", function() {
+
+      setStatus("warn", "Menyambung");
+
     });
-    client.on('reconnect', function(){ setStatus('warn', 'Menyambung'); });
-    client.on('close', function(){ setStatus('', 'Terputus'); });
-    client.on('message', function(topic, message){
-      try{ render(JSON.parse(message.toString())); }catch(e){}
+
+
+    client.on("offline", function() {
+
+      setStatus("", "Offline");
+
     });
+
+
+    client.on("close", function() {
+
+      setStatus("", "Terputus");
+
+    });
+
+
+    client.on("error", function() {
+
+      setStatus("", "Koneksi Error");
+
+    });
+
+
+    client.on("message", function(topic, message) {
+
+      try {
+
+        var payload = JSON.parse(
+          message.toString()
+        );
+
+        render(payload, false);
+
+      }
+
+      catch(error) {
+
+        console.error(
+          "Format MQTT tidak valid:",
+          error
+        );
+
+      }
+
+    });
+
   }
 
-  // ==== EXPORT EXCEL ====
-  document.getElementById('exportExcelBtn').addEventListener('click', function() {
-    if(history.do.length === 0) return alert("Belum ada data.");
-    var dataToExport = [];
-    var maxLen = Math.max(history.do.length, history.tempDs.length);
-    for(var i=0; i<maxLen; i++) {
-        var row = {};
-        if(history.do[i]) { row['Waktu'] = new Date(history.do[i].t).toLocaleString('id-ID'); row['DO (mg/L)'] = history.do[i].v; }
-        if(history.tempDs[i]) { if(!row['Waktu']) row['Waktu'] = new Date(history.tempDs[i].t).toLocaleString('id-ID'); row['Suhu Air (°C)'] = history.tempDs[i].v; }
-        dataToExport.push(row);
+
+  // =================================================
+  // 14. EXPORT DATA EXCEL
+  // =================================================
+
+  el("exportExcelBtn").addEventListener(
+    "click",
+    function() {
+
+      if (history.length === 0) {
+
+        alert("Belum ada data untuk diekspor.");
+
+        return;
+
+      }
+
+
+      var dataToExport = history.map(
+        function(record) {
+
+          return {
+
+            "Waktu": new Date(
+              record.t
+            ).toLocaleString("id-ID"),
+
+            "pH Air": record.ph,
+
+            "DO (mg/L)": record.do,
+
+            "Saturasi (%)": record.saturation,
+
+            "Suhu DO (°C)": record.tempDO,
+
+            "Suhu DS18B20 (°C)": record.tempDs,
+
+            "Tegangan (V)": record.voltage,
+
+            "Arus (A)": record.current,
+
+            "Daya (W)": record.power,
+
+            "Energi (kWh)": record.energy,
+
+            "Frekuensi (Hz)": record.frequency,
+
+            "Faktor Daya": record.powerFactor,
+
+            "Status Relay": record.relay === 1
+              ? "ON"
+              : record.relay === 0
+                ? "OFF"
+                : "Tidak diketahui"
+
+          };
+
+        }
+      );
+
+
+      var workbook = XLSX.utils.book_new();
+
+      var worksheet =
+        XLSX.utils.json_to_sheet(dataToExport);
+
+      XLSX.utils.book_append_sheet(
+        workbook,
+        worksheet,
+        "Data Monitoring"
+      );
+
+      XLSX.writeFile(
+        workbook,
+        "Riset_Aerator_Lengkap.xlsx"
+      );
+
     }
-    var workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(dataToExport), "Data");
-    XLSX.writeFile(workbook, "Riset_Aerator.xlsx");
-  });
+  );
 
-  window.addEventListener('resize', function(){
-    drawChart(document.getElementById('sparkDo'), history.do, '#2563eb');
-    drawChart(document.getElementById('sparkTemp'), history.tempDs, '#f59e0b');
-  });
 
-  // Mulai dengan mengambil riwayat dulu
+  // =================================================
+  // 15. RESPONSIVE GRAFIK
+  // =================================================
+
+  window.addEventListener(
+    "resize",
+    function() {
+
+      renderCharts();
+
+    }
+  );
+
+
+  // =================================================
+  // 16. MULAI SISTEM
+  // =================================================
+
   loadHistory();
+
 })();
+
 </script>
+
 </body>
 </html>
