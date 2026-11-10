@@ -1,2112 +1,799 @@
-
 <!DOCTYPE html>
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#f9fafb">
-
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e7490">
 <title>Monitor Aerator — Riset DO</title>
-
+<script>try{if(sessionStorage.getItem("aeratorAuth")==="1")document.documentElement.classList.add("authed")}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
-
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
 <style>
+:root{--bg:#edf4f6;--s:#fff;--ink:#0b2a33;--mu:#5b7480;--ln:#d7e4e9;--pond:#0e7490;--deep:#155e75;--aqua:#67c3d8;--ok:#0f9d6e;--wn:#d98a0b;--cr:#dc3a3a}
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font:14px/1.5 Geist,system-ui,-apple-system,"Segoe UI",sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+.num,.mono{font-family:"Geist Mono",ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+svg.ic{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.wrap{max-width:1180px;margin:0 auto;padding:calc(14px + env(safe-area-inset-top)) max(clamp(12px,3vw,28px),env(safe-area-inset-right)) calc(92px + env(safe-area-inset-bottom)) max(clamp(12px,3vw,28px),env(safe-area-inset-left))}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.logo{width:42px;height:42px;border-radius:13px;background:var(--pond);color:#fff;display:grid;place-items:center;flex:none}
+.brand h1{font-size:18px;font-weight:700;letter-spacing:-.01em;line-height:1.2}
+.brand p{font-size:12px;color:var(--mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.acts{display:flex;align-items:center;gap:8px;flex:none}
+.live{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;padding:8px 12px;border-radius:99px;background:var(--s);border:1px solid var(--ln)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--cr);position:relative}
+.dot.live{background:var(--ok)}.dot.warn{background:var(--wn)}
+.dot.live::after{content:"";position:absolute;inset:0;border-radius:50%;background:var(--ok);animation:ping 1.8s ease-out infinite}
+@keyframes ping{to{transform:scale(3.2);opacity:0}}
+.btn{border:0;border-radius:12px;padding:10px 14px;font:600 13px Geist,inherit;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:transform .15s,background .2s,box-shadow .2s;-webkit-tap-highlight-color:transparent}
+.btn:active{transform:scale(.97)}
+.btn:focus-visible,input:focus-visible,.seg button:focus-visible{outline:2px solid var(--pond);outline-offset:2px}
+.btn.pri{background:var(--pond);color:#fff}.btn.pri:hover{background:var(--deep)}
+.btn.ghost{background:var(--s);border:1px solid var(--ln);color:var(--ink)}.btn.ghost:hover{border-color:var(--pond);color:var(--pond)}
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}
+.grid>*{grid-column:span 12;min-width:0}
+.card,.tile{background:var(--s);border:1px solid var(--ln);border-radius:18px;padding:18px;transition:border-color .3s,background .3s}
+.tile{border-radius:14px;padding:14px}
+.is-warn{border-color:var(--wn)!important;background:#fffaf0!important}
+.is-crit{border-color:var(--cr)!important;background:#fff6f6!important}
+.lbl{font-size:12.5px;color:var(--mu);font-weight:500}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:3px 10px;border-radius:99px;background:#eef3f5;color:var(--mu);white-space:nowrap}
+.chip::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.chip.normal{background:#e1f5ec;color:#0b7a55}.chip.warn{background:#fdf0d4;color:#955a00}.chip.crit{background:#fde3e3;color:#b42323}
+.h{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:700;margin:10px 2px 12px;letter-spacing:-.01em}
+.h .ic{color:var(--pond)}
+/* Hero: kolam air, tinggi air = saturasi */
+.hero{position:relative;overflow:hidden;border-radius:28px;padding:26px;min-height:240px;display:flex;flex-direction:column;justify-content:space-between;background:linear-gradient(#fff,#f4fafb)}
+.hero.is-crit{animation:alert 1.8s ease-in-out infinite}
+@keyframes alert{50%{box-shadow:0 0 0 6px rgba(220,58,58,.15)}}
+.water{position:absolute;left:0;right:0;bottom:0;height:var(--lv,0%);background:linear-gradient(rgba(103,195,216,.5),rgba(14,116,144,.22));transition:height 1.6s cubic-bezier(.2,.8,.2,1);pointer-events:none}
+.water::before{content:"";position:absolute;left:0;top:-13px;width:200%;height:14px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 10' preserveAspectRatio='none'%3E%3Cpath d='M0 5Q12.5 0 25 5T50 5T75 5T100 5V10H0Z' fill='%2367c3d8' fill-opacity='.5'/%3E%3C/svg%3E") repeat-x;background-size:50% 100%;animation:wave 7s linear infinite}
+@keyframes wave{to{transform:translateX(-50%)}}
+.bubbles{position:absolute;inset:0;opacity:0;transition:opacity 1s;pointer-events:none}
+.bubbles.on{opacity:1}
+.bubbles span{position:absolute;bottom:-16px;border-radius:50%;border:1.5px solid rgba(255,255,255,.95);background:rgba(255,255,255,.35);animation:rise linear infinite}
+@keyframes rise{to{transform:translate(var(--dx),-340px);opacity:0}}
+.hero>*:not(.water):not(.bubbles){position:relative}
+.hero-top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}
+.big{display:flex;align-items:baseline;gap:8px;margin:6px 0 10px}
+.big .num{font-size:clamp(56px,11vw,92px);font-weight:600;line-height:1;letter-spacing:-.04em;color:var(--deep)}
+.big small{font-size:17px;color:var(--mu);font-weight:500}
+.sat{text-align:right}.sat .num{font-size:clamp(28px,5vw,40px);font-weight:600;color:var(--pond)}
+.sat .lbl{max-width:130px}
+.scale{margin-top:26px}
+.bar{position:relative;height:10px;border-radius:99px;background:linear-gradient(90deg,var(--cr) 0 30%,var(--wn) 30% var(--on,50%),var(--ok) var(--on,50%) 100%);--on:50%}
+.mark{position:absolute;top:50%;width:22px;height:22px;border-radius:50%;background:#fff;border:3px solid var(--ink);transform:translate(-50%,-50%);left:0;transition:left 1.2s cubic-bezier(.2,.8,.2,1),opacity .3s;box-shadow:0 2px 8px rgba(11,42,51,.25)}
+.ticks{display:flex;justify-content:space-between;font-size:11.5px;color:var(--mu);margin-top:8px}
+/* Relay */
+.rl{display:flex;flex-direction:column;gap:14px}
+.rhead{display:flex;align-items:center;gap:14px}
+.fan{width:54px;height:54px;border-radius:16px;display:grid;place-items:center;background:#eef3f5;color:var(--mu);transition:background .4s,color .4s;flex:none}
+.fan svg{width:28px;height:28px}
+.fan.on{background:#e1f5ec;color:var(--ok)}.fan.on svg{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.rv{font-size:20px;font-weight:700;letter-spacing:-.01em;line-height:1.2}
+.seg{position:relative;display:grid;grid-template-columns:repeat(3,1fr);background:#eef3f5;border-radius:14px;padding:4px;--a:0}
+.seg .thumb{position:absolute;top:4px;bottom:4px;left:4px;width:calc((100% - 8px)/3);border-radius:10px;background:var(--pond);transform:translateX(calc(var(--a)*100%));transition:transform .35s cubic-bezier(.3,1.3,.5,1),background .3s;box-shadow:0 2px 8px rgba(11,42,51,.18)}
+.seg[data-m=on] .thumb{background:var(--ok)}.seg[data-m=off] .thumb{background:var(--cr)}
+.seg button{position:relative;border:0;background:none;padding:11px 4px;font:600 13px Geist,inherit;color:var(--mu);cursor:pointer;border-radius:10px;transition:color .3s;-webkit-tap-highlight-color:transparent}
+.seg button.act{color:#fff}
+.note{font-size:12px;color:var(--mu);line-height:1.6}
+.msg{font-size:12.5px;color:var(--mu);min-height:19px}.msg.success{color:var(--ok)}.msg.warn{color:var(--wn)}.msg.error{color:var(--cr)}
+/* Status */
+.strip{display:flex;flex-wrap:wrap;gap:10px 22px;align-items:center;justify-content:space-between;padding:14px 18px}
+.strip .sys{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px}
+.pairs{display:flex;flex-wrap:wrap;gap:8px 18px}.pairs div{display:flex;align-items:center;gap:8px}
+/* Tiles */
+.tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.tl{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;font-size:12.5px;color:var(--mu);font-weight:500;line-height:1.3}
+.ico{width:32px;height:32px;border-radius:10px;background:#e6f1f4;color:var(--pond);display:grid;place-items:center;flex:none}
+.tv{display:flex;align-items:baseline;gap:5px;margin:8px 0 6px}
+.tv .num{font-size:clamp(22px,4.6vw,28px);font-weight:600;letter-spacing:-.02em}
+.tv small{font-size:12.5px;color:var(--mu)}
+/* Chart */
+.ch{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;font-weight:600}
+.ch .num{color:var(--pond);font-size:15px}
+.ch small{color:var(--mu);font-weight:500}
+canvas{width:100%;height:150px;display:block;touch-action:pan-y;cursor:crosshair}
+/* Setpoint */
+.sg{display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:16px}
+.sg .grp{display:none}
+.sg .grp.on{display:block}
+.grp{background:#f4f8f9;border-radius:14px;padding:14px 16px}
+.grp h3{font-size:13.5px;font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:8px}.grp h3 .ic{color:var(--pond)}
+.srow{padding:8px 0}
+.sh{display:flex;justify-content:space-between;margin-bottom:4px;font-size:13px;font-weight:500}
+.sh b{color:var(--pond);font-weight:600}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:24px;background:none;cursor:pointer;--p:50%}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:9px;background:linear-gradient(90deg,var(--pond) var(--p),#cfdde2 var(--p))}
+input[type=range]::-moz-range-track{height:6px;border-radius:9px;background:linear-gradient(90deg,var(--pond) var(--p),#cfdde2 var(--p))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;margin-top:-8px;border-radius:50%;background:#fff;border:3px solid var(--pond);box-shadow:0 2px 6px rgba(14,116,144,.35);transition:transform .15s}
+input[type=range]:active::-webkit-slider-thumb{transform:scale(1.18)}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#fff;border:3px solid var(--pond)}
+.sv{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.sv .btn{flex:1 1 150px;max-width:260px}
+.sv .msg{flex:1 1 180px}
+.subtabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;background:#eef3f5;border-radius:12px;padding:4px;margin-bottom:12px}
+.subtabs button{border:0;background:none;padding:9px 4px;border-radius:9px;font:600 13px Geist,system-ui,sans-serif;color:var(--mu);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.subtabs button.act{background:#fff;color:var(--pond);box-shadow:0 1px 4px rgba(11,42,51,.15)}
+/* Menu tab */
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:6px max(8px,env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));background:rgba(255,255,255,.95);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-top:1px solid var(--ln)}
+.tab{border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 2px;border-radius:12px;font:600 11px Geist,system-ui,sans-serif;color:var(--mu);cursor:pointer;-webkit-tap-highlight-color:transparent;transition:color .2s,background .2s}
+.tab .ic{width:22px;height:22px}
+.tab.act{color:var(--pond);background:#e6f1f4}
+.tab:focus-visible{outline:2px solid var(--pond);outline-offset:1px}
+.panel:not(.on){display:none}
+.panel.on{animation:tabin .3s ease}
+@keyframes tabin{from{opacity:0;transform:translateY(8px)}}
+/* Toast + dialog */
+#toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translate(-50%,30px);background:var(--ink);color:#fff;padding:12px 18px;border-radius:12px;font-size:13px;font-weight:500;opacity:0;pointer-events:none;transition:.35s cubic-bezier(.2,.8,.2,1);z-index:50;max-width:calc(100% - 32px);text-align:center}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+dialog{border:0;border-radius:20px;padding:24px;max-width:360px;width:calc(100% - 32px);margin:auto;color:var(--ink);box-shadow:0 20px 60px rgba(11,42,51,.3)}
+dialog::backdrop{background:rgba(11,42,51,.4);backdrop-filter:blur(4px)}
+dialog[open]{animation:pop .3s cubic-bezier(.2,1.2,.4,1)}
+@keyframes pop{from{transform:scale(.92);opacity:0}}
+dialog h3{font-size:17px;margin-bottom:6px}dialog p{color:var(--mu);margin-bottom:18px}
+dialog .row{display:flex;gap:8px}dialog .btn{flex:1}
+.btn.dng{background:var(--cr);color:#fff}
+.footer{text-align:center;color:var(--mu);font-size:12px;margin-top:28px}
+body.loading [data-k]{animation:pulse 1.3s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.35}}
 
-:root {
-  --bg: #f9fafb;
-  --surface: #ffffff;
-  --line: #e5e7eb;
-  --text-main: #111827;
-  --text-muted: #6b7280;
+/* ===== LOGIN ===== */
+html.authed #login{display:none}
+html:not(.authed) #app{display:none}
+.login{position:fixed;inset:0;z-index:40;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;
+  padding:calc(22px + env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) calc(60px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));
+  background:linear-gradient(180deg,#082f3d 0%,#0e7490 52%,#5fbcd2 100%)}
+.scene{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:0}
+.sun{position:absolute;top:7%;right:9%;width:clamp(90px,16vw,150px);aspect-ratio:1;border-radius:50%;
+  background:radial-gradient(circle at 40% 35%,#fff7d6,#fbbf24 55%,#f59e0b);
+  box-shadow:0 0 0 14px rgba(251,191,36,.18),0 0 80px 30px rgba(251,191,36,.42)}
+.sun::before{content:"";position:absolute;inset:-46%;border-radius:50%;
+  background:repeating-conic-gradient(from 0deg,rgba(251,191,36,.38) 0 6deg,transparent 6deg 18deg);
+  -webkit-mask:radial-gradient(circle,transparent 36%,#000 38%,transparent 70%);mask:radial-gradient(circle,transparent 36%,#000 38%,transparent 70%);
+  animation:spin 70s linear infinite}
+.lb{position:absolute;inset:0;overflow:hidden}
+.lb span{position:absolute;bottom:-20px;border-radius:50%;border:1.5px solid rgba(255,255,255,.7);background:rgba(255,255,255,.16);animation:lrise linear infinite}
+@keyframes lrise{to{transform:translate(var(--dx),-105vh);opacity:0}}
+.wv{position:absolute;left:0;bottom:0;width:200%;background-repeat:repeat-x;background-size:50% 100%}
+.wv1{height:150px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 120' preserveAspectRatio='none'%3E%3Cpath d='M0 60Q150 10 300 60T600 60T900 60T1200 60V120H0Z' fill='%2367c3d8' fill-opacity='.35'/%3E%3C/svg%3E");animation:wave 16s linear infinite}
+.wv2{height:110px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 120' preserveAspectRatio='none'%3E%3Cpath d='M0 60Q150 10 300 60T600 60T900 60T1200 60V120H0Z' fill='%230e7490' fill-opacity='.6'/%3E%3C/svg%3E");animation:wave 11s linear infinite reverse}
+.wv3{height:70px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 120' preserveAspectRatio='none'%3E%3Cpath d='M0 60Q150 10 300 60T600 60T900 60T1200 60V120H0Z' fill='%23082f3d' fill-opacity='.9'/%3E%3C/svg%3E");animation:wave 8s linear infinite}
+.lg-inner{position:relative;z-index:1;margin:auto;width:100%;max-width:420px}
+.lg-card{background:#fff;border-radius:26px;overflow:hidden;box-shadow:0 30px 70px rgba(4,30,40,.45),0 0 0 1px rgba(255,255,255,.35);animation:lgin .7s cubic-bezier(.2,.9,.3,1) both}
+@keyframes lgin{from{opacity:0;transform:translateY(24px) scale(.97)}}
+.lg-card.shake{animation:shake .45s}
+@keyframes shake{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+.lg-head{position:relative;padding:28px 24px 30px;text-align:center;color:#fff;overflow:hidden;
+  background:radial-gradient(circle at 88% 0,rgba(251,191,36,.3),transparent 46%),linear-gradient(160deg,#0e7490,#155e75 60%,#0b3a4a)}
+.lg-head::after{content:"";position:absolute;left:0;bottom:-1px;width:200%;height:16px;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 10' preserveAspectRatio='none'%3E%3Cpath d='M0 5Q12.5 0 25 5T50 5T75 5T100 5V10H0Z' fill='%23fff'/%3E%3C/svg%3E") repeat-x;background-size:50% 100%;animation:wave 8s linear infinite}
+.lg-logo{width:76px;height:76px;margin:0 auto 14px;border-radius:22px;background:rgba(255,255,255,.12);display:grid;place-items:center;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}
+.lg-tag{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#bfeaf3;margin-bottom:10px}
+.lg-tag .ic{width:15px;height:15px;color:#fbbf24}
+.lg-head h1{font-size:clamp(14.5px,3.9vw,17px);line-height:1.55;font-weight:700;letter-spacing:.05em;text-wrap:balance}
+.lg-form{padding:24px 24px 26px;display:flex;flex-direction:column;gap:16px}
+.lg-form h2{font-size:17px;font-weight:700;letter-spacing:-.01em}
+.lg-sub{font-size:12.5px;color:var(--mu);margin-top:2px}
+.fld label{display:block;font-size:12.5px;font-weight:600;margin-bottom:6px}
+.inp{position:relative}
+.inp>.ic{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--mu);pointer-events:none;transition:color .2s}
+.inp:focus-within>.ic{color:var(--pond)}
+.inp input{width:100%;height:48px;border:1.5px solid var(--ln);border-radius:12px;background:#f7fbfc;padding:0 46px 0 42px;font:500 16px Geist,inherit;color:var(--ink);transition:border-color .2s,box-shadow .2s,background .2s}
+.inp input::placeholder{color:#9ab0b9;font-weight:400}
+.inp input:focus{outline:none;border-color:var(--pond);background:#fff;box-shadow:0 0 0 4px rgba(14,116,144,.14)}
+.eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:36px;height:36px;border:0;background:none;color:var(--mu);border-radius:9px;cursor:pointer;display:grid;place-items:center;-webkit-tap-highlight-color:transparent}
+.eye:hover{color:var(--pond)}
+.eye:focus-visible{outline:2px solid var(--pond)}
+.lg-caps{font-size:12px;color:var(--wn);margin-top:6px;font-weight:500}
+.lg-err{min-height:19px;font-size:12.5px;font-weight:500;color:var(--cr)}
+.lg-btn{width:100%;height:50px;border:0;border-radius:14px;color:#fff;font:700 15px Geist,inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;
+  background:linear-gradient(135deg,#0e7490,#155e75);box-shadow:0 10px 24px rgba(14,116,144,.35);transition:transform .15s,box-shadow .2s,filter .2s;-webkit-tap-highlight-color:transparent}
+.lg-btn:hover{filter:brightness(1.08);box-shadow:0 12px 28px rgba(14,116,144,.45)}
+.lg-btn:active{transform:scale(.98)}
+.lg-btn:focus-visible{outline:2px solid var(--pond);outline-offset:3px}
+.lg-btn:disabled{cursor:wait;filter:none}
+.lg-btn .sp{display:none;width:16px;height:16px;border:2.5px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+.lg-btn.busy .sp{display:inline-block}
+.lg-feat{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-top:20px}
+.lg-feat span{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#fff;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);padding:6px 12px;border-radius:99px;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.lg-feat .ic{width:15px;height:15px}
+.lg-foot{text-align:center;font-size:11.5px;color:rgba(255,255,255,.85);margin-top:14px}
 
-  --blue: #2563eb;
-  --orange: #f59e0b;
-  --red: #ef4444;
-  --green: #10b981;
-
-  --radius: 16px;
+/* ===== RESPONSIF ===== */
+@media(min-width:600px){
+  .tiles.six{grid-template-columns:repeat(3,1fr)}
 }
-
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+@media(max-width:420px){
+  header{flex-wrap:wrap}
+  .hero{padding:20px}
+  .lg-head{padding:24px 18px 28px}
+  .lg-form{padding:22px 18px 22px}
 }
-
-body {
-  background: var(--bg);
-  color: var(--text-main);
-  font-family: 'Space Grotesk', system-ui, sans-serif;
-  min-height: 100vh;
-  -webkit-font-smoothing: antialiased;
+@media(max-width:380px){
+  .hero-top{flex-direction:column;gap:8px}
+  .sat{text-align:left;display:flex;align-items:baseline;gap:8px}
+  .sat .lbl{max-width:none}
 }
-
-.mono {
-  font-family: 'IBM Plex Mono', monospace;
+@media(max-height:480px) and (max-width:899px){
+  .tab{flex-direction:row;justify-content:center;gap:6px;padding:6px}
 }
-
-.wrap {
-  max-width: 680px;
-  margin: 0 auto;
-  padding: 16px 16px 40px;
+@media(min-width:900px){
+  .c8{grid-column:span 8}.c4{grid-column:span 4}.c6{grid-column:span 6}
+  .tiles.four{grid-template-columns:repeat(4,1fr)}
+  .tiles.six{grid-template-columns:repeat(6,1fr)}
+  .card{padding:22px}
+  canvas{height:200px}
+  .wrap{padding-bottom:calc(40px + env(safe-area-inset-bottom))}
+  .hero{min-height:300px}
+  .tabs{position:static;display:inline-grid;grid-template-columns:repeat(4,auto);padding:5px;margin-bottom:18px;border:1px solid var(--ln);border-radius:16px;background:#fff}
+  .tab{flex-direction:row;gap:8px;padding:9px 18px;font-size:13px}
+  .tab .ic{width:18px;height:18px}
+  #toast{bottom:calc(22px + env(safe-area-inset-bottom))}
+  .sg{grid-template-columns:repeat(3,1fr)}
+  .sg .grp{display:block}
+  .subtabs{display:none}
 }
-
-/* HEADER */
-
-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-bottom: 16px;
-  margin-bottom: 16px;
-  border-bottom: 1px solid var(--line);
-}
-
-.brand h1 {
-  font-size: 17px;
-  font-weight: 700;
-}
-
-.brand p {
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-top: 3px;
-}
-
-.header-actions {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-}
-
-.status-indicator {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
-}
-
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--red);
-}
-
-.dot.live {
-  background: var(--green);
-}
-
-.dot.warn {
-  background: var(--orange);
-}
-
-.btn-export {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  color: var(--text-main);
-  padding: 7px 12px;
-  border-radius: 8px;
-  font-size: 11px;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-}
-
-/* CARD */
-
-.card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 18px;
-  margin-bottom: 12px;
-}
-
-.section-title {
-  font-size: 13px;
-  font-weight: 700;
-  margin-bottom: 12px;
-}
-
-.section-subtitle {
-  font-size: 10px;
-  color: var(--text-muted);
-  margin-top: -8px;
-  margin-bottom: 14px;
-}
-
-/* HERO DO */
-
-.hero-layout {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.hero-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: .5px;
-  margin-bottom: 5px;
-}
-
-.hero-value {
-  font-size: 46px;
-  font-weight: 700;
-  color: var(--blue);
-  line-height: 1;
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-}
-
-.hero-value .unit {
-  font-size: 15px;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-.ring-container {
-  position: relative;
-  width: 80px;
-  height: 80px;
-}
-
-.ring-container svg {
-  transform: rotate(-90deg);
-  width: 100%;
-  height: 100%;
-}
-
-.ring-track {
-  stroke: var(--line);
-}
-
-.ring-value {
-  stroke: var(--blue);
-  stroke-linecap: round;
-  transition: stroke-dashoffset .6s ease;
-}
-
-.ring-center {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-.ring-center .pct {
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.ring-center .cap {
-  font-size: 9px;
-  color: var(--text-muted);
-}
-
-/* GRID */
-
-.grid-2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 12px;
-}
-
-.grid-3 {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  margin-bottom: 12px;
-}
-
-/* MINI CARD */
-
-.mini-card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 13px;
-  min-width: 0;
-}
-
-.mini-label {
-  font-size: 10px;
-  color: var(--text-muted);
-  margin-bottom: 5px;
-  font-weight: 500;
-}
-
-.mini-value {
-  font-size: 19px;
-  font-weight: 600;
-  color: var(--text-main);
-  overflow-wrap: anywhere;
-}
-
-.mini-unit {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-/* STATUS */
-
-.state {
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 700;
-  margin-top: 8px;
-  padding: 4px 8px;
-  border-radius: 6px;
-  background: #f3f4f6;
-  color: var(--text-muted);
-}
-
-.state.normal {
-  background: #ecfdf5;
-  color: #059669;
-}
-
-.state.warn {
-  background: #fffbeb;
-  color: #d97706;
-}
-
-.state.crit {
-  background: #fef2f2;
-  color: #dc2626;
-}
-
-/* RELAY */
-
-.relay-layout {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.relay-value {
-  font-size: 25px;
-  font-weight: 700;
-}
-
-.relay-pill {
-  font-size: 11px;
-  font-weight: 700;
-  padding: 7px 12px;
-  border-radius: 8px;
-  background: #ecfdf5;
-  color: #059669;
-}
-
-.relay-pill.off {
-  background: #f3f4f6;
-  color: #6b7280;
-}
-
-/* WARNINGS */
-
-.is-warn {
-  border-color: var(--orange);
-  background: #fffbeb;
-}
-
-.is-crit {
-  border-color: var(--red);
-  background: #fef2f2;
-}
-
-/* CHART */
-
-.chart-header {
-  font-size: 13px;
-  font-weight: 600;
-  margin-bottom: 12px;
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.chart-header span {
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-.chart-container canvas {
-  width: 100%;
-  height: 140px;
-  display: block;
-}
-
-/* FOOTER */
-
-.footer {
-  text-align: center;
-  color: var(--text-muted);
-  font-size: 10px;
-  margin-top: 20px;
-}
-
-/* RESPONSIVE */
-
-@media (max-width: 390px) {
-
-  .grid-3 {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .hero-value {
-    font-size: 38px;
-  }
-
-  .mini-value {
-    font-size: 17px;
-  }
-
-}
-
+@media(prefers-reduced-motion:reduce){*,::before,::after{animation:none!important;transition:none!important}}
 </style>
 </head>
+<body class="loading">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></symbol>
+<symbol id="i-therm" viewBox="0 0 24 24"><path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/></symbol>
+<symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></symbol>
+<symbol id="i-act" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
+<symbol id="i-gauge" viewBox="0 0 24 24"><path d="m12 14 4-4M3.3 19a10 10 0 1 1 17.4 0"/></symbol>
+<symbol id="i-power" viewBox="0 0 24 24"><path d="M12 2v10M18.4 6.6a9 9 0 1 1-12.77.04"/></symbol>
+<symbol id="i-batt" viewBox="0 0 24 24"><path d="M4 7h13a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2zM22 11v2"/></symbol>
+<symbol id="i-fan" viewBox="0 0 24 24"><path d="M10.827 16.379a6.082 6.082 0 0 1-8.618-7.002l5.412 1.45a6.082 6.082 0 0 1 7.002-8.618l-1.45 5.412a6.082 6.082 0 0 1 8.618 7.002l-5.412-1.45a6.082 6.082 0 0 1-7.002 8.618l1.45-5.412ZM12 12v.01"/></symbol>
+<symbol id="i-down" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
+<symbol id="i-sl" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></symbol>
+<symbol id="i-ok" viewBox="0 0 24 24"><path d="M22 11.1V12a10 10 0 1 1-5.9-9.1M22 4 12 14l-3-3"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+<symbol id="i-user" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61M2 2l20 20"/></symbol>
+<symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></symbol>
+</svg>
 
-<body>
+<!-- ===================== HALAMAN LOGIN ===================== -->
+<section class="login" id="login" aria-label="Halaman login">
+  <div class="scene" aria-hidden="true">
+    <div class="sun"></div>
+    <div class="lb" id="lgBubbles"></div>
+    <div class="wv wv1"></div><div class="wv wv2"></div><div class="wv wv3"></div>
+  </div>
+  <div class="lg-inner">
+    <div class="lg-card" id="lgCard">
+      <div class="lg-head">
+        <div class="lg-logo">
+          <svg viewBox="0 0 64 64" width="56" height="56" aria-hidden="true">
+            <circle cx="44" cy="18" r="8" fill="#fbbf24"/>
+            <path d="M44 4v3M44 29v3M30 18h3M55 18h3M34 8l2 2M52 26l2 2M54 8l-2 2M36 26l-2 2" stroke="#fbbf24" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+            <path d="M8 46l8-16h26l8 16z" fill="#0b2a33" stroke="#fff" stroke-width="2" stroke-linejoin="round"/>
+            <path d="M12 38h34M14 34h30M21 46l3-16M29 46V30M37 46l-3-16" stroke="#67c3d8" stroke-width="1.5" fill="none"/>
+            <path d="M4 55q7-5 14 0t14 0 14 0 14 0" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="lg-tag"><svg class="ic"><use href="#i-sun"/></svg>Riset Aerator Tenaga Surya</div>
+        <h1>PENGEMBANGAN PROTOTIPE AERATOR PINTAR BERBASIS ENERGI SURYA UNTUK TAMBAK DAN KOLAM IKAN</h1>
+      </div>
 
+      <form class="lg-form" id="loginForm" autocomplete="on" novalidate>
+        <div>
+          <h2>Masuk ke dashboard</h2>
+          <p class="lg-sub">Khusus peneliti. Masukkan username dan password.</p>
+        </div>
+        <div class="fld">
+          <label for="lgUser">Username</label>
+          <div class="inp">
+            <svg class="ic"><use href="#i-user"/></svg>
+            <input id="lgUser" name="username" type="text" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Masukkan username" required>
+          </div>
+        </div>
+        <div class="fld">
+          <label for="lgPass">Password</label>
+          <div class="inp">
+            <svg class="ic"><use href="#i-lock"/></svg>
+            <input id="lgPass" name="password" type="password" autocomplete="current-password" placeholder="Masukkan password" required>
+            <button type="button" class="eye" id="eyeBtn" aria-label="Tampilkan password"><svg class="ic"><use id="eyeUse" href="#i-eye"/></svg></button>
+          </div>
+          <div class="lg-caps" id="lgCaps" hidden>Caps Lock sedang aktif.</div>
+        </div>
+        <div class="lg-err" id="lgErr" role="alert" aria-live="polite"></div>
+        <button type="submit" class="lg-btn" id="lgBtn"><i class="sp"></i><b class="tx">Masuk</b></button>
+      </form>
+    </div>
+
+    <div class="lg-feat">
+      <span><svg class="ic"><use href="#i-sun"/></svg>Energi surya</span>
+      <span><svg class="ic"><use href="#i-drop"/></svg>Kualitas air real-time</span>
+      <span><svg class="ic"><use href="#i-fan"/></svg>Aerator otomatis</span>
+    </div>
+    <div class="lg-foot">Sistem monitoring kualitas air dan energi aerator · ESP32 + MQTT</div>
+  </div>
+</section>
+
+<!-- ===================== DASHBOARD ===================== -->
+<div id="app">
 <div class="wrap">
+<header>
+  <div class="brand">
+    <div class="logo"><svg class="ic"><use href="#i-drop"/></svg></div>
+    <div><h1>Riset aerator</h1><p id="lastUpdate">Mengambil riwayat data...</p></div>
+  </div>
+  <div class="acts">
+    <div class="live"><span class="dot" id="statusDot"></span><span id="statusText">Sinkronisasi</span></div>
+  </div>
+</header>
 
-  <!-- ========================================= -->
-  <!-- HEADER -->
-  <!-- ========================================= -->
+<nav class="tabs" id="tabs" role="tablist" aria-label="Menu utama">
+  <button type="button" class="tab act" role="tab" aria-selected="true"><svg class="ic"><use href="#i-gauge"/></svg><span>Beranda</span></button>
+  <button type="button" class="tab" role="tab" aria-selected="false"><svg class="ic"><use href="#i-drop"/></svg><span>Air</span></button>
+  <button type="button" class="tab" role="tab" aria-selected="false"><svg class="ic"><use href="#i-zap"/></svg><span>Energi</span></button>
+  <button type="button" class="tab" role="tab" aria-selected="false"><svg class="ic"><use href="#i-sl"/></svg><span>Setelan</span></button>
+</nav>
 
-  <header>
-
-    <div class="brand">
-
-      <h1>Riset Aerator</h1>
-
-      <p id="lastUpdate">
-        Mengambil riwayat data...
-      </p>
-
-    </div>
-
-    <div class="header-actions">
-
-      <button id="exportExcelBtn" class="btn-export">
-        Unduh Excel
-      </button>
-
-      <div class="status-indicator">
-
-        <span class="dot" id="statusDot"></span>
-
-        <span id="statusText">
-          Sinkronisasi
-        </span>
-
-      </div>
-
-    </div>
-
-  </header>
-
-
-  <!-- ========================================= -->
-  <!-- DISSOLVED OXYGEN -->
-  <!-- ========================================= -->
-
-  <div class="card" id="cardDo">
-
-    <div class="hero-layout">
-
-      <div>
-
-        <div class="hero-label">
-          Dissolved Oxygen
+<main>
+  <!-- TAB 1: BERANDA -->
+  <section class="panel grid on" id="p0">
+    <article class="card hero c8" id="cardDo">
+      <div class="water" id="water"></div>
+      <div class="bubbles" id="bubbles"></div>
+      <div class="hero-top">
+        <div>
+          <div class="lbl">Oksigen terlarut (DO)</div>
+          <div class="big"><b class="num" data-k="do" data-d="2">--</b><small>mg/L</small></div>
+          <span class="chip" id="doStatus">Menunggu data</span>
         </div>
-
-        <div class="hero-value mono">
-
-          <span id="doValue">--</span>
-
-          <span class="unit">
-            mg/L
-          </span>
-
-        </div>
-
-        <span class="state" id="doStatus">
-          Menunggu data
-        </span>
-
+        <div class="sat"><div class="num"><span data-k="saturation" data-d="0">--</span>%</div><div class="lbl">Saturasi, setinggi air di kolam ini</div></div>
       </div>
-
-      <div class="ring-container">
-
-        <svg viewBox="0 0 100 100">
-
-          <circle
-            class="ring-track"
-            cx="50"
-            cy="50"
-            r="42"
-            fill="none"
-            stroke-width="8">
-          </circle>
-
-          <circle
-            class="ring-value"
-            id="ringValue"
-            cx="50"
-            cy="50"
-            r="42"
-            fill="none"
-            stroke-width="8"
-            stroke-dasharray="263.89"
-            stroke-dashoffset="263.89">
-          </circle>
-
-        </svg>
-
-        <div class="ring-center">
-
-          <span class="pct mono" id="satValue">
-            --%
-          </span>
-
-          <span class="cap">
-            Saturasi
-          </span>
-
-        </div>
-
+      <div class="scale">
+        <div class="bar" id="scale"><i class="mark" id="mark"></i></div>
+        <div class="ticks mono"><span>0</span><span>3 kritis</span><span id="onTick">5</span><span>10+</span></div>
       </div>
+    </article>
 
-    </div>
-
-  </div>
-
-
-  <!-- ========================================= -->
-  <!-- KUALITAS AIR -->
-  <!-- ========================================= -->
-
-  <div class="section-title">
-    Parameter Kualitas Air
-  </div>
-
-  <div class="grid-2">
-
-    <div class="mini-card" id="cardPH">
-
-      <div class="mini-label">
-        Derajat Keasaman
+    <article class="card rl c4">
+      <div class="rhead">
+        <div class="fan" id="fan"><svg class="ic"><use href="#i-fan"/></svg></div>
+        <div style="flex:1;min-width:0"><div class="lbl">Relay GPIO26</div><div class="rv" id="relayText">Menunggu data</div></div>
+        <span class="chip" id="relayBadge">--</span>
       </div>
-
-      <div class="mini-value mono">
-        <span id="phValue">--</span>
+      <div class="lbl">Mode operasi: <b id="relayModeText" style="color:var(--ink)">--</b></div>
+      <div class="seg" id="seg" data-m="auto">
+        <i class="thumb"></i>
+        <button type="button" id="relayAutoBtn">Otomatis</button>
+        <button type="button" id="relayOnBtn">ON</button>
+        <button type="button" id="relayOffBtn">OFF</button>
       </div>
+      <div class="msg" id="relayModeBadge">Mode belum diketahui.</div>
+      <div class="note">Mode otomatis mengikuti set point DO. Pada mode manual, ESP32 tetap menyalakan relay jika DO di bawah 3 mg/L atau sensor DO gagal dibaca.</div>
+    </article>
 
-      <span class="state" id="phStatus">
-        Menunggu data
-      </span>
-
-    </div>
-
-
-    <div class="mini-card" id="cardTemp">
-
-      <div class="mini-label">
-        Suhu Air DS18B20
+    <section class="card strip c12" id="cardSys">
+      <div class="sys"><svg class="ic" style="color:var(--pond)"><use href="#i-ok"/></svg><span id="qualitySystem">Menunggu data</span></div>
+      <div class="pairs">
+        <div><span class="lbl">pH</span><span class="chip" id="qualityPH">--</span></div>
+        <div><span class="lbl">Suhu</span><span class="chip" id="qualityTemp">--</span></div>
+        <div><span class="lbl">DO</span><span class="chip" id="qualityDO">--</span></div>
       </div>
+    </section>
+  </section>
 
-      <div class="mini-value mono">
-        <span id="tempDsValue">--</span>
-        <span class="mini-unit">°C</span>
+  <!-- TAB 2: AIR -->
+  <section class="panel grid" id="p1">
+    <section class="c12"><h2 class="h"><svg class="ic"><use href="#i-drop"/></svg>Kualitas air</h2><div class="tiles four" id="params"></div></section>
+    <section class="c12"><h2 class="h"><svg class="ic"><use href="#i-act"/></svg>Tren data</h2></section>
+    <div id="chAir" style="display:contents"></div>
+  </section>
+
+  <!-- TAB 3: ENERGI -->
+  <section class="panel grid" id="p2">
+    <section class="c12"><h2 class="h"><svg class="ic"><use href="#i-zap"/></svg>Energi listrik (PZEM-004T)</h2><div class="tiles six" id="pzem"></div></section>
+    <section class="c12"><h2 class="h"><svg class="ic"><use href="#i-act"/></svg>Tren daya</h2></section>
+    <div id="chEn" style="display:contents"></div>
+  </section>
+
+  <!-- TAB 4: SETELAN -->
+  <section class="panel grid" id="p3">
+    <section class="card c12">
+      <h2 class="h" style="margin-top:0"><svg class="ic"><use href="#i-sl"/></svg>Set point kualitas air</h2>
+      <p class="note" style="margin:-6px 0 14px">Geser batas minimum dan maksimum, lalu simpan. Nilai disimpan di ESP32.</p>
+      <div class="subtabs" id="spTabs">
+        <button type="button" class="act" data-i="0">pH</button>
+        <button type="button" data-i="1">Suhu</button>
+        <button type="button" data-i="2">DO</button>
       </div>
-
-      <span class="state" id="tempStatus">
-        Menunggu data
-      </span>
-
-    </div>
-
-
-    <div class="mini-card">
-
-      <div class="mini-label">
-        Suhu Sensor DO
+      <div class="sg" id="sg"></div>
+      <div class="sv"><button type="button" class="btn pri" id="saveSettingsBtn">Simpan set point</button><div class="msg" id="settingsMessage">Menunggu koneksi ESP32.</div></div>
+    </section>
+    <section class="card c12">
+      <h2 class="h" style="margin-top:0"><svg class="ic"><use href="#i-down"/></svg>Data &amp; akun</h2>
+      <div class="sv">
+        <button class="btn pri" id="exportExcelBtn"><svg class="ic"><use href="#i-down"/></svg><span>Unduh Excel</span></button>
+        <button class="btn ghost" id="logoutBtn"><svg class="ic"><use href="#i-logout"/></svg><span>Keluar</span></button>
       </div>
-
-      <div class="mini-value mono">
-        <span id="tempDoValue">--</span>
-        <span class="mini-unit">°C</span>
-      </div>
-
-    </div>
-
-
-    <div class="mini-card">
-
-      <div class="mini-label">
-        Saturasi Oksigen
-      </div>
-
-      <div class="mini-value mono">
-        <span id="satValue2">--</span>
-        <span class="mini-unit">%</span>
-      </div>
-
-    </div>
-
-  </div>
-
-
-  <!-- ========================================= -->
-  <!-- STATUS AERATOR -->
-  <!-- ========================================= -->
-
-  <div class="card">
-
-    <div class="section-title">
-      Kontrol Aerator Otomatis
-    </div>
-
-    <div class="relay-layout">
-
-      <div>
-
-        <div class="mini-label">
-          Status Relay GPIO26
-        </div>
-
-        <div class="relay-value" id="relayText">
-          Menunggu data
-        </div>
-
-        <div class="mini-label" style="margin-top:5px">
-          Pengendalian berdasarkan nilai DO
-        </div>
-
-      </div>
-
-      <div>
-
-        <span class="relay-pill" id="relayBadge">
-          --
-        </span>
-
-      </div>
-
-    </div>
-
-  </div>
-
-
-  <!-- ========================================= -->
-  <!-- PZEM -->
-  <!-- ========================================= -->
-
-  <div class="section-title">
-    Monitoring Energi Listrik (PZEM-004T)
-  </div>
-
-  <div class="grid-2">
-
-    <div class="mini-card">
-
-      <div class="mini-label">
-        Tegangan
-      </div>
-
-      <div class="mini-value mono">
-        <span id="voltageValue">--</span>
-        <span class="mini-unit">V</span>
-      </div>
-
-    </div>
-
-
-    <div class="mini-card">
-
-      <div class="mini-label">
-        Arus
-      </div>
-
-      <div class="mini-value mono">
-        <span id="currentValue">--</span>
-        <span class="mini-unit">A</span>
-      </div>
-
-    </div>
-
-
-    <div class="mini-card">
-
-      <div class="mini-label">
-        Daya Aktif
-      </div>
-
-      <div class="mini-value mono">
-        <span id="powerValue">--</span>
-        <span class="mini-unit">W</span>
-      </div>
-
-    </div>
-
-
-    <div class="mini-card">
-
-      <div class="mini-label">
-        Energi
-      </div>
-
-      <div class="mini-value mono">
-        <span id="energyValue">--</span>
-        <span class="mini-unit">kWh</span>
-      </div>
-
-    </div>
-
-
-    <div class="mini-card">
-
-      <div class="mini-label">
-        Frekuensi
-      </div>
-
-      <div class="mini-value mono">
-        <span id="frequencyValue">--</span>
-        <span class="mini-unit">Hz</span>
-      </div>
-
-    </div>
-
-
-    <div class="mini-card">
-
-      <div class="mini-label">
-        Faktor Daya
-      </div>
-
-      <div class="mini-value mono">
-        <span id="pfValue">--</span>
-      </div>
-
-    </div>
-
-  </div>
-
-
-  <!-- ========================================= -->
-  <!-- STATUS KUALITAS AIR -->
-  <!-- ========================================= -->
-
-  <div class="card">
-
-    <div class="section-title">
-      Status Kondisi Air
-    </div>
-
-    <div class="grid-2">
-
-      <div>
-        <div class="mini-label">Status pH</div>
-        <span class="state" id="qualityPH">
-          --
-        </span>
-      </div>
-
-      <div>
-        <div class="mini-label">Status Suhu</div>
-        <span class="state" id="qualityTemp">
-          --
-        </span>
-      </div>
-
-      <div>
-        <div class="mini-label">Status DO</div>
-        <span class="state" id="qualityDO">
-          --
-        </span>
-      </div>
-
-      <div>
-        <div class="mini-label">Status Sistem</div>
-        <span class="state" id="qualitySystem">
-          Menunggu data
-        </span>
-      </div>
-
-    </div>
-
-  </div>
-
-
-  <!-- ========================================= -->
-  <!-- GRAFIK DO -->
-  <!-- ========================================= -->
-
-  <div class="card">
-
-    <div class="chart-header">
-
-      Tren Dissolved Oxygen (mg/L)
-
-      <span class="mono" id="doValue2">
-        --
-      </span>
-
-    </div>
-
-    <div class="chart-container">
-
-      <canvas id="sparkDo"></canvas>
-
-    </div>
-
-  </div>
-
-
-  <!-- ========================================= -->
-  <!-- GRAFIK PH -->
-  <!-- ========================================= -->
-
-  <div class="card">
-
-    <div class="chart-header">
-
-      Tren pH Air
-
-      <span class="mono" id="phValue2">
-        --
-      </span>
-
-    </div>
-
-    <div class="chart-container">
-
-      <canvas id="sparkPH"></canvas>
-
-    </div>
-
-  </div>
-
-
-  <!-- ========================================= -->
-  <!-- GRAFIK SUHU -->
-  <!-- ========================================= -->
-
-  <div class="card">
-
-    <div class="chart-header">
-
-      Tren Suhu Air (°C)
-
-      <span class="mono" id="tempDsValue2">
-        --
-      </span>
-
-    </div>
-
-    <div class="chart-container">
-
-      <canvas id="sparkTemp"></canvas>
-
-    </div>
-
-  </div>
-
-
-  <!-- ========================================= -->
-  <!-- GRAFIK DAYA -->
-  <!-- ========================================= -->
-
-  <div class="card">
-
-    <div class="chart-header">
-
-      Tren Daya Aktif (W)
-
-      <span class="mono" id="powerValue2">
-        --
-      </span>
-
-    </div>
-
-    <div class="chart-container">
-
-      <canvas id="sparkPower"></canvas>
-
-    </div>
-
-  </div>
-
-
-  <div class="footer">
-
-    Sistem Monitoring Kualitas Air dan Energi Aerator
-    <br>
-    Berbasis ESP32 — MQTT HiveMQ
-
-  </div>
-
+    </section>
+  </section>
+</main>
+<div class="footer">Sistem monitoring kualitas air dan energi aerator · ESP32 + MQTT HiveMQ</div>
+</div>
 </div>
 
+<div id="toast" role="status"></div>
+<dialog id="dlg"><h3>Matikan aerator?</h3><p>Pastikan kondisi tambak aman sebelum mematikan relay secara manual.</p><div class="row"><button class="btn ghost" id="dn">Batal</button><button class="btn dng" id="dy">Ya, matikan</button></div></dialog>
 
 <script>
+(function(){
+// ===== 1. KONFIGURASI =====
+var MQTT_HOST="5fc256d8cf06470999e59076d5dcc1a6.s1.eu.hivemq.cloud",MQTT_WSS_PORT=8884,MQTT_USER="RISETAERATOR",MQTT_PASS="RISETAERATOR1";
+var MQTT_TOPIC="riset/aerator/data",MQTT_CONTROL_TOPIC="riset/aerator/control";
+var CLIENT_ID="web_monitor_"+Math.random().toString(16).slice(2,10);
+var GAS_URL="https://script.google.com/macros/s/AKfycby4rX2FX8z9QZMnejDBQo6WcPml0354Pc_6lahIs2J2GL8FbBxLjlYNuPs8LAhUOvV8/exec";
+var SP={phMin:7.5,phMax:8.5,suhuMin:28,suhuMax:32,doOn:5,doOff:5.5};
+var history=[],HISTORY_LEN=100,lastSampleAt=0,SAMPLE_INTERVAL_MS=180000,mqttClient=null,settingsDirty=false,pendingSettings=null;
+var started=false,sess=0;
+var RM=matchMedia("(prefers-reduced-motion:reduce)").matches;
 
-(function() {
+var $=function(id){return document.getElementById(id)};
+var ic=function(n){return '<svg class="ic"><use href="#i-'+n+'"/></svg>'};
+function num(v){if(v===null||v===undefined||v==="")return null;var n=Number(v);return isFinite(n)?n:null}
+function fmt(v,d){var n=num(v);return n===null?"--":n.toFixed(d===undefined?2:d)}
+function setStatus(k,t){$("statusDot").className="dot"+(k?" "+k:"");$("statusText").textContent=t}
+function setChip(id,t,k){var e=$(id);e.textContent=t;e.className="chip"+(k?" "+k:"")}
+function cardState(id,k){var c=$(id);c.classList.remove("is-warn","is-crit");if(k)c.classList.add("is-"+k)}
+var tmo;function toast(t){var e=$("toast");e.textContent=t;e.classList.add("show");clearTimeout(tmo);tmo=setTimeout(function(){e.classList.remove("show")},3200)}
 
-  // =================================================
-  // 1. KONFIGURASI MQTT
-  // =================================================
+// Angka bergerak halus saat nilai berubah
+function setNum(e,v,d){
+  var n=num(v);if(n===null){e.textContent="--";e._v=null;return}
+  var from=e._v==null?0:e._v;e._v=n;cancelAnimationFrame(e._r);
+  if(RM||from===n){e.textContent=n.toFixed(d);return}
+  var t0=performance.now();
+  (function s(t){var k=Math.min(1,(t-t0)/(e._v0?650:1100)),z=1-Math.pow(1-k,3);e.textContent=(from+(n-from)*z).toFixed(d);if(k<1)e._r=requestAnimationFrame(s);else e._v0=1})(t0);
+}
 
-  var MQTT_HOST =
-    "5fc256d8cf06470999e59076d5dcc1a6.s1.eu.hivemq.cloud";
+// ===== 2. KOMPONEN =====
+var PARAM=[["ph","Derajat keasaman (pH)","","drop",2,"phStatus","t_ph"],["tempDS18B20","Suhu air (DS18B20)","°C","therm",2,"tempStatus","t_temp"],["tempDO","Suhu sensor DO","°C","therm",2],["saturation","Saturasi oksigen","%","gauge",0]];
+var PZEM=[["voltage","Tegangan","V","zap",1],["current","Arus","A","act",2],["power","Daya aktif","W","power",1],["energy","Energi","kWh","batt",3],["frequency","Frekuensi","Hz","act",1],["powerFactor","Faktor daya","","gauge",2]];
+var CHARTS=[["do","Tren DO","mg/L","#0e7490",2],["ph","Tren pH air","","#0f9d6e",2],["tempDS18B20","Tren suhu air","°C","#d98a0b",2],["power","Tren daya aktif","W","#dc3a3a",1]];
+function tile(p){return '<div class="tile" id="'+(p[6]||"t_"+p[0])+'"><div class="tl"><span>'+p[1]+'</span><i class="ico">'+ic(p[3])+'</i></div><div class="tv"><b class="num" data-k="'+p[0]+'" data-d="'+p[4]+'">--</b><small>'+p[2]+'</small></div>'+(p[5]?'<span class="chip" id="'+p[5]+'">Menunggu data</span>':'')+'</div>'}
+$("params").innerHTML=PARAM.map(tile).join("");
+$("pzem").innerHTML=PZEM.map(tile).join("");
+function chartCard(c,span){return '<article class="card '+span+'"><div class="ch"><span>'+c[1]+' <small>'+c[2]+'</small></span><span class="num" data-k="'+c[0]+'" data-d="'+c[4]+'">--</span></div><canvas id="cv_'+c[0]+'"></canvas></article>'}
+$("chAir").innerHTML=CHARTS.slice(0,3).map(function(c){return chartCard(c,"c6")}).join("");
+$("chEn").innerHTML=CHARTS.slice(3).map(function(c){return chartCard(c,"c12")}).join("");
 
-  var MQTT_WSS_PORT = 8884;
+// Gelembung udara (tampil saat aerator menyala)
+(function(){var h="";for(var i=0;i<16;i++){var s=6+Math.random()*14;h+='<span style="left:'+(Math.random()*96).toFixed(1)+'%;width:'+s+'px;height:'+s+'px;--dx:'+((Math.random()*40-20)|0)+'px;animation-duration:'+(4+Math.random()*4).toFixed(1)+'s;animation-delay:-'+(Math.random()*8).toFixed(1)+'s"></span>'}$("bubbles").innerHTML=h})();
 
-  var MQTT_USER = "RISETAERATOR";
+// Gelembung latar halaman login
+(function(){var h="";for(var i=0;i<18;i++){var s=6+Math.random()*16;h+='<span style="left:'+(Math.random()*98).toFixed(1)+'%;width:'+s+'px;height:'+s+'px;--dx:'+((Math.random()*60-30)|0)+'px;animation-duration:'+(9+Math.random()*9).toFixed(1)+'s;animation-delay:-'+(Math.random()*14).toFixed(1)+'s"></span>'}$("lgBubbles").innerHTML=h})();
 
-  var MQTT_PASS = "RISETAERATOR1";
+// ===== 3. NORMALISASI & STATUS =====
+function normalizePayload(p){
+  return{ph:num(p.ph),do:num(p.do),saturation:num(p.saturation!==undefined?p.saturation:p.sat),tempDO:num(p.tempDO),
+  tempDS18B20:num(p.tempDS18B20!==undefined?p.tempDS18B20:p.tempDs),voltage:num(p.voltage),current:num(p.current),power:num(p.power),
+  energy:num(p.energy),frequency:num(p.frequency),powerFactor:num(p.powerFactor!==undefined?p.powerFactor:p.pf),relay:num(p.relay),
+  relayMode:p.relayMode||"auto",statusPH:num(p.statusPH),statusSuhu:num(p.statusSuhu),statusDO:num(p.statusDO),
+  phMin:num(p.phMin),phMax:num(p.phMax),suhuMin:num(p.suhuMin),suhuMax:num(p.suhuMax),doOn:num(p.doOn),doOff:num(p.doOff)}
+}
+function evaluateStatus(v,s,min,max){
+  if(s!==null){if(s===-1)return"error";if(s===0)return"low";if(s===2)return"high";if(s===1)return"normal"}
+  if(v===null)return"error";if(v<min)return"low";if(v>max)return"high";return"normal"
+}
+function evaluateDO(v,s){
+  if(s!==null){if(s===-1)return"error";if(s===0)return"low";if(s===1)return"normal"}
+  if(v===null)return"error";return v<SP.doOn?"low":"normal"
+}
+var LABEL={error:"Data tidak valid",low:"Di bawah batas",high:"Di atas batas",normal:"Normal"};
+function cls(s){return s==="normal"?"normal":(s==="low"||s==="high"?"warn":"crit")}
+function setStat(ids,s){ids.forEach(function(id){setChip(id,LABEL[s],cls(s))})}
 
-  var MQTT_TOPIC = "riset/aerator/data";
+// ===== 4. SET POINT =====
+var FIELDS=[
+ {k:"phMin",l:"pH minimum",min:0,max:13.9,step:.1,g:0,suf:""},{k:"phMax",l:"pH maksimum",min:.1,max:14,step:.1,g:0,suf:""},
+ {k:"suhuMin",l:"Suhu minimum",min:0,max:49.5,step:.5,g:1,suf:" °C"},{k:"suhuMax",l:"Suhu maksimum",min:.5,max:50,step:.5,g:1,suf:" °C"},
+ {k:"doOn",l:"DO untuk relay ON",min:0,max:19.9,step:.1,g:2,suf:" mg/L"},{k:"doOff",l:"DO untuk relay OFF",min:.1,max:20,step:.1,g:2,suf:" mg/L"}];
+var GROUPS=[["Keasaman (pH)","drop"],["Suhu air","therm"],["Oksigen terlarut","gauge"]];
+$("sg").innerHTML=GROUPS.map(function(g,gi){return '<div class="grp"><h3>'+ic(g[1])+g[0]+'</h3>'+FIELDS.filter(function(f){return f.g===gi}).map(function(f){
+  return '<div class="srow"><div class="sh"><span>'+f.l+'</span><b class="mono" id="v_'+f.k+'"></b></div><input type="range" id="i_'+f.k+'" min="'+f.min+'" max="'+f.max+'" step="'+f.step+'" value="'+SP[f.k]+'" aria-label="'+f.l+'"></div>'}).join("")+'</div>'}).join("");
 
-  var CLIENT_ID =
-    "web_monitor_" + Math.random().toString(16).slice(2, 10);
+function updateSliderLabels(){
+  FIELDS.forEach(function(f){var i=$("i_"+f.k);$("v_"+f.k).textContent=Number(i.value).toFixed(1)+f.suf;i.style.setProperty("--p",((i.value-f.min)/(f.max-f.min)*100)+"%")})
+}
+function syncSetpoints(d){
+  if(!FIELDS.every(function(f){return d[f.k]!==null}))return;
+  FIELDS.forEach(function(f){SP[f.k]=d[f.k]});
+  if(settingsDirty){
+    if(pendingSettings&&FIELDS.every(function(f){return Math.abs(d[f.k]-pendingSettings[f.k])<.011})){
+      settingsDirty=false;pendingSettings=null;
+      $("settingsMessage").textContent="Set point diterapkan dan dikonfirmasi ESP32.";$("settingsMessage").className="msg success";toast("Set point tersimpan di ESP32")
+    }
+    if(settingsDirty)return
+  }
+  FIELDS.forEach(function(f){$("i_"+f.k).value=d[f.k]});updateSliderLabels()
+}
+FIELDS.forEach(function(f){$("i_"+f.k).addEventListener("input",function(){
+  settingsDirty=true;pendingSettings=null;updateSliderLabels();
+  $("settingsMessage").textContent="Ada perubahan yang belum disimpan.";$("settingsMessage").className="msg warn"})});
 
+function publishCommand(cmd,cb){
+  if(!mqttClient||!mqttClient.connected){cb(new Error("MQTT belum terhubung"));return}
+  mqttClient.publish(MQTT_CONTROL_TOPIC,JSON.stringify(cmd),{qos:1},function(e){cb(e||null)})
+}
+$("saveSettingsBtn").addEventListener("click",function(){
+  var s={};FIELDS.forEach(function(f){s[f.k]=Number($("i_"+f.k).value)});
+  if(!(s.phMin>=0&&s.phMax<=14&&s.phMin<s.phMax))return toast("Rentang pH tidak valid: minimum harus lebih kecil dari maksimum.");
+  if(!(s.suhuMin>=0&&s.suhuMax<=50&&s.suhuMin<s.suhuMax))return toast("Rentang suhu tidak valid: minimum harus lebih kecil dari maksimum.");
+  if(!(s.doOn>=0&&s.doOff<=20&&s.doOn<s.doOff))return toast("Rentang DO tidak valid: DO relay ON harus lebih kecil dari DO relay OFF.");
+  var cmd={command:"settings"};FIELDS.forEach(function(f){cmd[f.k]=s[f.k]});
+  publishCommand(cmd,function(err){
+    if(err){$("settingsMessage").textContent="Gagal mengirim. Periksa koneksi MQTT dan izin publish.";$("settingsMessage").className="msg error";return}
+    pendingSettings=s;$("settingsMessage").textContent="Terkirim ke broker. Menunggu konfirmasi ESP32...";$("settingsMessage").className="msg warn"})
+});
 
-  // =================================================
-  // 2. GOOGLE SHEETS
-  // =================================================
+// ===== 5. KONTROL RELAY =====
+function setRelay(mode,state){
+  var cmd={command:"relay",mode:mode};if(mode==="manual")cmd.relay=state?1:0;
+  publishCommand(cmd,function(err){
+    $("relayModeBadge").textContent=err?"Gagal mengirim. Periksa koneksi MQTT dan izin publish.":(mode==="auto"?"Mode otomatis terkirim, menunggu ESP32.":(state?"Manual ON terkirim, menunggu ESP32.":"Manual OFF terkirim, menunggu ESP32."))})
+}
+$("relayOnBtn").addEventListener("click",function(){setRelay("manual",true)});
+$("relayAutoBtn").addEventListener("click",function(){setRelay("auto",false)});
+$("relayOffBtn").addEventListener("click",function(){$("dlg").showModal()});
+$("dn").addEventListener("click",function(){$("dlg").close()});
+$("dy").addEventListener("click",function(){$("dlg").close();setRelay("manual",false)});
 
-  var GAS_URL =
-    "https://script.google.com/macros/s/AKfycby4rX2FX8z9QZMnejDBQo6WcPml0354Pc_6lahIs2J2GL8FbBxLjlYNuPs8LAhUOvV8/exec";
+// ===== 6. RIWAYAT =====
+function pushHistory(d,t){
+  history.push({t:t,ph:d.ph,do:d.do,saturation:d.saturation,tempDO:d.tempDO,tempDS18B20:d.tempDS18B20,voltage:d.voltage,current:d.current,power:d.power,energy:d.energy,frequency:d.frequency,powerFactor:d.powerFactor,relay:d.relay});
+  if(history.length>HISTORY_LEN)history.shift()
+}
 
+// ===== 7. RENDER =====
+function render(payload,isHistory){
+  var d=normalizePayload(payload);
+  document.body.classList.remove("loading");
+  syncSetpoints(d);
+  document.querySelectorAll("[data-k]").forEach(function(e){setNum(e,d[e.dataset.k],+e.dataset.d)});
 
-  // =================================================
-  // 3. SET POINT
-  // Harus sama dengan program ESP32
-  // =================================================
+  // Kolam: tinggi air = saturasi, penanda skala DO
+  $("water").style.setProperty("--lv",(d.saturation===null?0:Math.max(0,Math.min(100,d.saturation)))+"%");
+  var on=Math.min(100,SP.doOn/10*100);$("scale").style.setProperty("--on",on+"%");$("onTick").textContent=SP.doOn.toFixed(1);$("onTick").style.marginLeft="0";
+  $("mark").style.left=(d.do===null?0:Math.max(0,Math.min(100,d.do/10*100)))+"%";$("mark").style.opacity=d.do===null?0:1;
 
-  var PH_MIN = 7.5;
-  var PH_MAX = 8.5;
+  var sDO=evaluateDO(d.do,d.statusDO);
+  setChip("doStatus",LABEL[sDO],cls(sDO));
+  cardState("cardDo",(sDO==="error"||(d.do!==null&&d.do<3))?"crit":(sDO==="low"?"warn":""));
+  var sPH=evaluateStatus(d.ph,d.statusPH,d.phMin!==null?d.phMin:SP.phMin,d.phMax!==null?d.phMax:SP.phMax);
+  setChip("phStatus",LABEL[sPH],cls(sPH));cardState("t_ph",sPH==="error"?"crit":(sPH==="normal"?"":"warn"));
+  var sT=evaluateStatus(d.tempDS18B20,d.statusSuhu,d.suhuMin!==null?d.suhuMin:SP.suhuMin,d.suhuMax!==null?d.suhuMax:SP.suhuMax);
+  setChip("tempStatus",LABEL[sT],cls(sT));cardState("t_temp",sT==="error"?"crit":(sT==="normal"?"":"warn"));
+  setStat(["qualityDO"],sDO);setStat(["qualityPH"],sPH);setStat(["qualityTemp"],sT);
 
-  var TEMP_MIN = 28.0;
-  var TEMP_MAX = 32.0;
-
-  var DO_MIN = 5.0;
-
-
-  // =================================================
-  // 4. RIWAYAT DATA
-  // =================================================
-
-  var history = [];
-
-  var HISTORY_LEN = 100;
-
-  var lastSampleAt = 0;
-
-  var SAMPLE_INTERVAL_MS = 3 * 60 * 1000;
-
-
-  // =================================================
-  // 5. FUNGSI BANTUAN
-  // =================================================
-
-  function el(id) {
-    return document.getElementById(id);
+  // Relay
+  var rOn=d.relay===1;
+  $("relayText").textContent=d.relay===null?"Tidak diketahui":(rOn?"Aerator menyala":"Aerator mati");
+  setChip("relayBadge",d.relay===null?"--":(rOn?"ON":"OFF"),rOn?"normal":"");
+  $("fan").classList.toggle("on",rOn);$("bubbles").classList.toggle("on",rOn);
+  if(!isHistory){
+    var manual=d.relayMode==="manual",a=manual?(rOn?1:2):0;
+    $("relayModeText").textContent=manual?"Manual":"Otomatis";
+    $("seg").style.setProperty("--a",a);$("seg").dataset.m=["auto","on","off"][a];
+    [$("relayAutoBtn"),$("relayOnBtn"),$("relayOffBtn")].forEach(function(b,i){b.classList.toggle("act",i===a)});
+    $("relayModeBadge").textContent=manual?"Mode manual aktif. Pengaman DO kritis tetap berlaku.":"Mode otomatis aktif: relay mengikuti set point DO."
   }
 
+  // Status sistem
+  var err=sPH==="error"||sT==="error"||sDO==="error",warn=[sPH,sT].some(function(s){return s==="low"||s==="high"})||sDO==="low";
+  $("qualitySystem").textContent=err?"Sensor tidak valid":(warn?"Perlu perhatian":"Semua parameter normal");
+  $("cardSys").className="card strip c12"+(err?" is-crit":(warn?" is-warn":""));
 
-  // Konversi data agar null tidak dianggap nol
-  function num(value) {
-
-    if (
-      value === null ||
-      value === undefined ||
-      value === ""
-    ) {
-      return null;
-    }
-
-    var n = Number(value);
-
-    return Number.isFinite(n) ? n : null;
+  if(!isHistory){
+    var now=Date.now();
+    if(lastSampleAt===0||now-lastSampleAt>=SAMPLE_INTERVAL_MS){lastSampleAt=now;pushHistory(d,now);renderCharts(false)}
+    $("lastUpdate").textContent="Data langsung · "+new Date().toLocaleTimeString("id-ID")
   }
+}
 
-
-  function fmt(value, decimal) {
-
-    var n = num(value);
-
-    if (n === null) return "--";
-
-    return n.toFixed(decimal === undefined ? 2 : decimal);
+// ===== 8. GRAFIK =====
+var CH={};CHARTS.forEach(function(c){CH[c[0]]={p:1,hi:-1}});
+function fmtTime(t){return new Date(t).toLocaleTimeString("id-ID",{hour:"2-digit",minute:"2-digit"})}
+function seriesOf(f){return history.map(function(i){return{v:num(i[f]),t:i.t}}).filter(function(i){return i.v!==null})}
+function draw(c){
+  var f=c[0],u=c[2],col=c[3],cv=$("cv_"+f),s=CH[f],x=cv.getContext("2d"),dpr=window.devicePixelRatio||1,w=cv.clientWidth,h=cv.clientHeight;
+  if(!w||!h)return;
+  cv.width=w*dpr;cv.height=h*dpr;x.setTransform(dpr,0,0,dpr,0,0);x.clearRect(0,0,w,h);
+  x.font='11px "Geist Mono",ui-monospace,monospace';
+  var pts=seriesOf(f);
+  if(!pts.length){x.fillStyle="#8aa0aa";x.textAlign="center";x.fillText("Menunggu data...",w/2,h/2);return}
+  var L=36,R=10,T=14,B=22,pw=w-L-R,ph=h-T-B,vals=pts.map(function(p){return p.v}),mn=Math.min.apply(null,vals),mx=Math.max.apply(null,vals);
+  if(mn===mx){mn-=1;mx+=1}var pad=(mx-mn)*.14;mn-=pad;mx+=pad;
+  var X=function(i){return L+(pts.length<2?pw/2:i/(pts.length-1)*pw)},Y=function(v){return T+ph-(v-mn)/(mx-mn)*ph};
+  x.textAlign="left";x.lineWidth=1;
+  [mx,(mn+mx)/2,mn].forEach(function(v){var y=Y(v);x.strokeStyle="#e3edf0";x.beginPath();x.moveTo(L,y);x.lineTo(w-R,y);x.stroke();x.fillStyle="#7d949e";x.fillText(v.toFixed(1),0,y+4)});
+  x.fillStyle="#7d949e";x.textAlign="left";x.fillText(fmtTime(pts[0].t),L,h-5);x.textAlign="right";x.fillText(fmtTime(pts[pts.length-1].t),w-R,h-5);
+  if(pts.length>1){
+    x.save();x.beginPath();x.rect(0,0,L+pw*s.p+2,h);x.clip();
+    var path=function(){x.moveTo(X(0),Y(pts[0].v));for(var i=1;i<pts.length;i++){var mx2=(X(i-1)+X(i))/2;x.bezierCurveTo(mx2,Y(pts[i-1].v),mx2,Y(pts[i].v),X(i),Y(pts[i].v))}};
+    x.beginPath();path();x.lineTo(X(pts.length-1),T+ph);x.lineTo(X(0),T+ph);x.closePath();
+    var g=x.createLinearGradient(0,T,0,T+ph);g.addColorStop(0,col+"30");g.addColorStop(1,col+"00");x.fillStyle=g;x.fill();
+    x.beginPath();path();x.strokeStyle=col;x.lineWidth=2.2;x.lineJoin="round";x.stroke();x.restore()
   }
-
-
-  function setStatus(kind, text) {
-
-    el("statusDot").className =
-      "dot" + (kind ? " " + kind : "");
-
-    el("statusText").textContent = text;
+  var li=s.hi>=0&&s.hi<pts.length?s.hi:pts.length-1;
+  if(s.p>=1||s.hi>=0){var px=X(li),py=Y(pts[li].v);
+    if(s.hi>=0){x.strokeStyle="#b8cbd2";x.lineWidth=1;x.setLineDash([3,3]);x.beginPath();x.moveTo(px,T);x.lineTo(px,T+ph);x.stroke();x.setLineDash([])}
+    x.beginPath();x.arc(px,py,4.5,0,7);x.fillStyle="#fff";x.fill();x.lineWidth=2.5;x.strokeStyle=col;x.stroke();
+    if(s.hi>=0){var tx=pts[li].v.toFixed(2)+" "+u+" · "+fmtTime(pts[li].t),tw=x.measureText(tx).width+18,bx=Math.min(Math.max(px-tw/2,2),w-tw-2);
+      x.beginPath();(x.roundRect||x.rect).call(x,bx,0,tw,22,7);x.fillStyle="#0b2a33";x.fill();x.fillStyle="#fff";x.textAlign="center";x.fillText(tx,bx+tw/2,15)}
   }
-
-
-  function setState(id, text, kind) {
-
-    var node = el(id);
-
-    node.textContent = text;
-
-    node.className =
-      "state" + (kind ? " " + kind : "");
-  }
-
-
-  function setCardState(id, kind) {
-
-    var card = el(id);
-
-    card.classList.remove("is-warn", "is-crit");
-
-    if (kind === "warn") {
-      card.classList.add("is-warn");
-    }
-
-    if (kind === "crit") {
-      card.classList.add("is-crit");
-    }
-  }
-
-
-  function updateRing(pct) {
-
-    var value = num(pct);
-
-    if (value === null) {
-
-      el("ringValue").style.strokeDashoffset = 263.89;
-
-      return;
-    }
-
-    var bounded = Math.max(0, Math.min(100, value));
-
-    var offset =
-      263.89 - (bounded / 100) * 263.89;
-
-    el("ringValue").style.strokeDashoffset = offset;
-  }
-
-
-  function getTimestamp(value) {
-
-    if (value === null || value === undefined) {
-      return Date.now();
-    }
-
-    var n = Number(value);
-
-    if (Number.isFinite(n) && n > 0) {
-
-      return n < 1000000000000 ? n * 1000 : n;
-    }
-
-    var parsed = new Date(value).getTime();
-
-    return Number.isFinite(parsed) ? parsed : Date.now();
-  }
-
-
-  // =================================================
-  // 6. STATUS PARAMETER
-  // =================================================
-
-  function evaluatePH(value, suppliedStatus) {
-
-    if (num(suppliedStatus) !== null) {
-
-      var status = Number(suppliedStatus);
-
-      if (status === -1) return "error";
-
-      if (status === 0) return "low";
-
-      if (status === 2) return "high";
-
-      if (status === 1) return "normal";
-    }
-
-    var n = num(value);
-
-    if (n === null) return "error";
-
-    if (n < PH_MIN) return "low";
-
-    if (n > PH_MAX) return "high";
-
-    return "normal";
-  }
-
-
-  function evaluateTemp(value, suppliedStatus) {
-
-    if (num(suppliedStatus) !== null) {
-
-      var status = Number(suppliedStatus);
-
-      if (status === -1) return "error";
-
-      if (status === 0) return "low";
-
-      if (status === 2) return "high";
-
-      if (status === 1) return "normal";
-    }
-
-    var n = num(value);
-
-    if (n === null) return "error";
-
-    if (n < TEMP_MIN) return "low";
-
-    if (n > TEMP_MAX) return "high";
-
-    return "normal";
-  }
-
-
-  function evaluateDO(value, suppliedStatus) {
-
-    if (num(suppliedStatus) !== null) {
-
-      var status = Number(suppliedStatus);
-
-      if (status === -1) return "error";
-
-      if (status === 0) return "low";
-
-      if (status === 1) return "normal";
-    }
-
-    var n = num(value);
-
-    if (n === null) return "error";
-
-    if (n < DO_MIN) return "low";
-
-    return "normal";
-  }
-
-
-  function statusLabel(status, parameter) {
-
-    if (status === "error") return "Data tidak valid";
-
-    if (status === "low") return "Di bawah batas";
-
-    if (status === "high") return "Di atas batas";
-
-    return "Normal";
-  }
-
-
-  function statusClass(status) {
-
-    if (status === "error") return "";
-
-    if (status === "normal") return "normal";
-
-    if (status === "low" || status === "high") return "warn";
-
-    return "";
-  }
-
-
-  // =================================================
-  // 7. NORMALISASI DATA MQTT DAN GOOGLE SHEETS
-  // =================================================
-
-  function normalizePayload(payload) {
-
-    return {
-
-      ph: num(payload.ph),
-
-      do: num(payload.do),
-
-      saturation: num(
-        payload.saturation !== undefined
-          ? payload.saturation
-          : payload.sat
-      ),
-
-      tempDO: num(payload.tempDO),
-
-      tempDS18B20: num(
-        payload.tempDS18B20 !== undefined
-          ? payload.tempDS18B20
-          : payload.tempDs
-      ),
-
-      voltage: num(payload.voltage),
-
-      current: num(payload.current),
-
-      power: num(payload.power),
-
-      energy: num(payload.energy),
-
-      frequency: num(payload.frequency),
-
-      powerFactor: num(
-        payload.powerFactor !== undefined
-          ? payload.powerFactor
-          : payload.pf
-      ),
-
-      relay: num(payload.relay),
-
-      statusPH: num(payload.statusPH),
-
-      statusSuhu: num(payload.statusSuhu),
-
-      statusDO: num(payload.statusDO)
-
-    };
-
-  }
-
-
-  // =================================================
-  // 8. RENDER DATA KE DASHBOARD
-  // =================================================
-
-  function render(payload, isHistory) {
-
-    var data = normalizePayload(payload);
-
-
-    // ===============================================
-    // DO
-    // ===============================================
-
-    el("doValue").textContent =
-      fmt(data.do);
-
-    el("doValue2").textContent =
-      fmt(data.do);
-
-    el("satValue").textContent =
-      fmt(data.saturation, 0) + "%";
-
-    el("satValue2").textContent =
-      fmt(data.saturation, 0);
-
-    updateRing(data.saturation);
-
-    var doStatus =
-      evaluateDO(data.do, data.statusDO);
-
-    setState(
-      "doStatus",
-      statusLabel(doStatus),
-      statusClass(doStatus)
-    );
-
-    if (doStatus === "error") {
-      setCardState("cardDo", "crit");
-    }
-    else if (data.do !== null && data.do < 3) {
-      setCardState("cardDo", "crit");
-    }
-    else if (doStatus === "low") {
-      setCardState("cardDo", "warn");
-    }
-    else {
-      setCardState("cardDo", "");
-    }
-
-
-    // ===============================================
-    // pH
-    // ===============================================
-
-    el("phValue").textContent =
-      fmt(data.ph);
-
-    el("phValue2").textContent =
-      fmt(data.ph);
-
-    var phStatus =
-      evaluatePH(data.ph, data.statusPH);
-
-    setState(
-      "phStatus",
-      statusLabel(phStatus),
-      statusClass(phStatus)
-    );
-
-    setState(
-      "qualityPH",
-      statusLabel(phStatus),
-      statusClass(phStatus)
-    );
-
-    setCardState(
-      "cardPH",
-      phStatus === "error"
-        ? "crit"
-        : phStatus === "normal" ? "" : "warn"
-    );
-
-
-    // ===============================================
-    // SUHU AIR
-    // ===============================================
-
-    el("tempDsValue").textContent =
-      fmt(data.tempDS18B20);
-
-    el("tempDsValue2").textContent =
-      fmt(data.tempDS18B20);
-
-    el("tempDoValue").textContent =
-      fmt(data.tempDO);
-
-    var tempStatus =
-      evaluateTemp(data.tempDS18B20, data.statusSuhu);
-
-    setState(
-      "tempStatus",
-      statusLabel(tempStatus),
-      statusClass(tempStatus)
-    );
-
-    setState(
-      "qualityTemp",
-      statusLabel(tempStatus),
-      statusClass(tempStatus)
-    );
-
-    setCardState(
-      "cardTemp",
-      tempStatus === "error"
-        ? "crit"
-        : tempStatus === "normal" ? "" : "warn"
-    );
-
-
-    // ===============================================
-    // RELAY
-    // ===============================================
-
-    if (data.relay === null) {
-
-      el("relayText").textContent = "Tidak diketahui";
-
-      el("relayBadge").textContent = "--";
-
-      el("relayBadge").className = "relay-pill";
-
-    }
-    else if (data.relay === 1) {
-
-      el("relayText").textContent = "Aerator Menyala";
-
-      el("relayBadge").textContent = "RELAY ON";
-
-      el("relayBadge").className = "relay-pill";
-
-    }
-    else {
-
-      el("relayText").textContent = "Aerator Mati";
-
-      el("relayBadge").textContent = "RELAY OFF";
-
-      el("relayBadge").className = "relay-pill off";
-
-    }
-
-
-    // ===============================================
-    // PZEM
-    // ===============================================
-
-    el("voltageValue").textContent =
-      fmt(data.voltage, 1);
-
-    el("currentValue").textContent =
-      fmt(data.current, 2);
-
-    el("powerValue").textContent =
-      fmt(data.power, 1);
-
-    el("energyValue").textContent =
-      fmt(data.energy, 3);
-
-    el("frequencyValue").textContent =
-      fmt(data.frequency, 1);
-
-    el("pfValue").textContent =
-      fmt(data.powerFactor, 2);
-
-    el("powerValue2").textContent =
-      fmt(data.power, 1);
-
-
-    // ===============================================
-    // STATUS UMUM
-    // ===============================================
-
-    setState(
-      "qualityDO",
-      statusLabel(doStatus),
-      statusClass(doStatus)
-    );
-
-    var hasSensorError =
-      phStatus === "error" ||
-      tempStatus === "error" ||
-      doStatus === "error";
-
-    var hasWarning =
-      phStatus === "low" ||
-      phStatus === "high" ||
-      tempStatus === "low" ||
-      tempStatus === "high" ||
-      doStatus === "low";
-
-    if (hasSensorError) {
-
-      setState(
-        "qualitySystem",
-        "Sensor tidak valid",
-        "crit"
-      );
-
-    }
-    else if (hasWarning) {
-
-      setState(
-        "qualitySystem",
-        "Perlu perhatian",
-        "warn"
-      );
-
-    }
-    else {
-
-      setState(
-        "qualitySystem",
-        "Semua normal",
-        "normal"
-      );
-
-    }
-
-
-    // ===============================================
-    // DATA LIVE
-    // ===============================================
-
-    if (!isHistory) {
-
-      var now = Date.now();
-
-      if (
-        lastSampleAt === 0 ||
-        now - lastSampleAt >= SAMPLE_INTERVAL_MS
-      ) {
-
-        lastSampleAt = now;
-
-        pushHistory(data, now);
-      }
-
-      renderCharts();
-
-      el("lastUpdate").textContent =
-        "Live Terakhir: " +
-        new Date().toLocaleTimeString("id-ID");
-
-    }
-
-  }
-
-
-  // =================================================
-  // 9. RIWAYAT GRAFIK
-  // =================================================
-
-  function pushHistory(data, timestamp) {
-
-    history.push({
-
-      t: timestamp,
-
-      ph: data.ph,
-
-      do: data.do,
-
-      tempDs: data.tempDS18B20,
-
-      tempDO: data.tempDO,
-
-      power: data.power,
-
-      voltage: data.voltage,
-
-      current: data.current,
-
-      energy: data.energy,
-
-      frequency: data.frequency,
-
-      powerFactor: data.powerFactor,
-
-      saturation: data.saturation,
-
-      relay: data.relay
-
+}
+var animId=0;
+function renderCharts(anim){
+  cancelAnimationFrame(animId);
+  if(anim&&!RM){var t0=performance.now();(function f(t){var k=Math.min(1,(t-t0)/1100),p=1-Math.pow(1-k,3);CHARTS.forEach(function(c){CH[c[0]].p=p;draw(c)});if(k<1)animId=requestAnimationFrame(f)})(t0)}
+  else CHARTS.forEach(function(c){CH[c[0]].p=1;draw(c)})
+}
+CHARTS.forEach(function(c){
+  var cv=$("cv_"+c[0]);
+  function move(e){var n=seriesOf(c[0]).length;if(n<2)return;var r=cv.getBoundingClientRect(),i=Math.round((e.clientX-r.left-36)/(r.width-46)*(n-1));CH[c[0]].hi=Math.max(0,Math.min(n-1,i));draw(c)}
+  cv.addEventListener("pointermove",move);cv.addEventListener("pointerdown",move);
+  ["pointerleave","pointercancel"].forEach(function(ev){cv.addEventListener(ev,function(){CH[c[0]].hi=-1;draw(c)})})
+});
+
+// ===== 9. RIWAYAT GOOGLE SHEETS =====
+function firstDefined(item,names){for(var i=0;i<names.length;i++){if(item[names[i]]!==undefined&&item[names[i]]!==null&&item[names[i]]!=="")return item[names[i]]}return null}
+function getTimestamp(v){
+  if(v===null||v===undefined||v==="")return Date.now();
+  var n=Number(v);if(isFinite(n)&&n>0)return n<1e12?n*1000:n;
+  var p=new Date(v).getTime();return isFinite(p)?p:Date.now()
+}
+function loadHistory(){
+  var id=sess;
+  setStatus("warn","Ambil riwayat");
+  fetch(GAS_URL).then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json()}).then(function(rows){
+    if(id!==sess)return;
+    if(!Array.isArray(rows))throw new Error("Format riwayat harus berupa array");
+    history=[];
+    rows.forEach(function(it){
+      pushHistory({ph:num(firstDefined(it,["ph","pH"])),do:num(firstDefined(it,["do","DO"])),saturation:num(firstDefined(it,["saturation","sat"])),
+        tempDO:num(firstDefined(it,["tempDO"])),tempDS18B20:num(firstDefined(it,["tempDS18B20","tempDs"])),voltage:num(firstDefined(it,["voltage"])),
+        current:num(firstDefined(it,["current"])),power:num(firstDefined(it,["power"])),energy:num(firstDefined(it,["energy"])),
+        frequency:num(firstDefined(it,["frequency"])),powerFactor:num(firstDefined(it,["powerFactor","pf"])),relay:num(firstDefined(it,["relay"]))},
+        getTimestamp(firstDefined(it,["t","timestamp","time","waktu"])))
     });
-
-    if (history.length > HISTORY_LEN) {
-
-      history.shift();
-    }
-
-  }
-
-
-  // =================================================
-  // 10. FUNGSI GAMBAR GRAFIK
-  // =================================================
-
-  function drawChart(canvas, records, field, color) {
-
-    var ctx = canvas.getContext("2d");
-
-    var dpr = window.devicePixelRatio || 1;
-
-    var w = canvas.clientWidth;
-
-    var h = canvas.clientHeight || 140;
-
-    canvas.width = w * dpr;
-
-    canvas.height = h * dpr;
-
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-    ctx.clearRect(0, 0, w, h);
-
-    ctx.font = '10px "IBM Plex Mono", monospace';
-
-    var points = records
-      .map(function(record) {
-
-        return {
-
-          v: num(record[field]),
-
-          t: record.t
-
-        };
-
-      })
-      .filter(function(point) {
-
-        return point.v !== null;
-
-      });
-
-
-    if (points.length === 0) {
-
-      ctx.fillStyle = "#9ca3af";
-
-      ctx.textAlign = "center";
-
-      ctx.fillText(
-        "Menunggu data...",
-        w / 2,
-        h / 2
-      );
-
-      return;
-
-    }
-
-
-    var padLeft = 32;
-
-    var padRight = 5;
-
-    var padTop = 10;
-
-    var padBottom = 20;
-
-    var plotW = w - padLeft - padRight;
-
-    var plotH = h - padTop - padBottom;
-
-    var values = points.map(function(p) {
-      return p.v;
-    });
-
-    var min = Math.min.apply(null, values);
-
-    var max = Math.max.apply(null, values);
-
-    if (min === max) {
-      min -= 1;
-      max += 1;
-    }
-
-
-    // Garis bantu grafik
-
-    ctx.strokeStyle = "#f3f4f6";
-
-    ctx.fillStyle = "#9ca3af";
-
-    ctx.textAlign = "left";
-
-    [max, (min + max) / 2, min].forEach(function(val) {
-
-      var y =
-        padTop +
-        plotH -
-        ((val - min) / (max - min)) * plotH;
-
-      ctx.beginPath();
-
-      ctx.moveTo(padLeft, y);
-
-      ctx.lineTo(w - padRight, y);
-
-      ctx.stroke();
-
-      ctx.fillText(val.toFixed(1), 0, y + 3);
-
-    });
-
-
-    if (points.length < 2) return;
-
-
-    // Koordinat grafik
-
-    var coords = points.map(function(p, i) {
-
-      return {
-
-        x:
-          padLeft +
-          (i / (points.length - 1)) * plotW,
-
-        y:
-          padTop +
-          plotH -
-          ((p.v - min) / (max - min)) * plotH
-
-      };
-
-    });
-
-
-    // Area grafik
-
-    ctx.beginPath();
-
-    ctx.moveTo(
-      coords[0].x,
-      padTop + plotH
-    );
-
-    coords.forEach(function(c) {
-
-      ctx.lineTo(c.x, c.y);
-
-    });
-
-    ctx.lineTo(
-      coords[coords.length - 1].x,
-      padTop + plotH
-    );
-
-    ctx.closePath();
-
-
-    var grad = ctx.createLinearGradient(
-      0,
-      padTop,
-      0,
-      padTop + plotH
-    );
-
-    grad.addColorStop(0, color + "33");
-
-    grad.addColorStop(1, color + "00");
-
-    ctx.fillStyle = grad;
-
-    ctx.fill();
-
-
-    // Garis grafik
-
-    ctx.beginPath();
-
-    coords.forEach(function(c, i) {
-
-      if (i === 0) {
-
-        ctx.moveTo(c.x, c.y);
-
-      } else {
-
-        ctx.lineTo(c.x, c.y);
-
-      }
-
-    });
-
-    ctx.strokeStyle = color;
-
-    ctx.lineWidth = 2;
-
-    ctx.stroke();
-
-
-    // Titik terakhir
-
-    var last = coords[coords.length - 1];
-
-    ctx.beginPath();
-
-    ctx.arc(last.x, last.y, 3, 0, Math.PI * 2);
-
-    ctx.fillStyle = color;
-
-    ctx.fill();
-
-
-    // Waktu grafik
-
-    ctx.fillStyle = "#9ca3af";
-
-    ctx.textAlign = "left";
-
-    ctx.fillText(
-      fmtTime(points[0].t),
-      padLeft,
-      h - 4
-    );
-
-    ctx.textAlign = "right";
-
-    ctx.fillText(
-      fmtTime(points[points.length - 1].t),
-      w - padRight,
-      h - 4
-    );
-
-  }
-
-
-  function fmtTime(timestamp) {
-
-    return new Date(timestamp).toLocaleTimeString(
-      "id-ID",
-      {
-        hour: "2-digit",
-        minute: "2-digit"
-      }
-    );
-
-  }
-
-
-  // =================================================
-  // 11. RENDER SEMUA GRAFIK
-  // =================================================
-
-  function renderCharts() {
-
-    drawChart(
-      el("sparkDo"),
-      history,
-      "do",
-      "#2563eb"
-    );
-
-    drawChart(
-      el("sparkPH"),
-      history,
-      "ph",
-      "#10b981"
-    );
-
-    drawChart(
-      el("sparkTemp"),
-      history,
-      "tempDs",
-      "#f59e0b"
-    );
-
-    drawChart(
-      el("sparkPower"),
-      history,
-      "power",
-      "#ef4444"
-    );
-
-  }
-
-
-  // =================================================
-  // 12. MEMUAT RIWAYAT GOOGLE SHEETS
-  // =================================================
-
-  function loadHistory() {
-
-    setStatus("warn", "Ambil Riwayat");
-
-    fetch(GAS_URL)
-
-      .then(function(response) {
-
-        if (!response.ok) {
-
-          throw new Error("Gagal mengambil Google Sheets");
-
-        }
-
-        return response.json();
-
-      })
-
-      .then(function(data) {
-
-        if (!Array.isArray(data)) {
-
-          throw new Error("Format riwayat bukan array");
-
-        }
-
-        history = [];
-
-        data.forEach(function(item) {
-
-          var record = normalizePayload(item);
-
-          var timestamp = getTimestamp(
-            item.t !== undefined
-              ? item.t
-              : item.timestamp
-          );
-
-          pushHistory(record, timestamp);
-
-        });
-
-
-        // Menampilkan data terakhir dari riwayat
-
-        if (history.length > 0) {
-
-          var lastData = history[history.length - 1];
-
-          render({
-
-            ph: lastData.ph,
-
-            do: lastData.do,
-
-            saturation: lastData.saturation,
-
-            tempDO: lastData.tempDO,
-
-            tempDS18B20: lastData.tempDs,
-
-            voltage: lastData.voltage,
-
-            current: lastData.current,
-
-            power: lastData.power,
-
-            energy: lastData.energy,
-
-            frequency: lastData.frequency,
-
-            powerFactor: lastData.powerFactor,
-
-            relay: lastData.relay
-
-          }, true);
-
-          el("lastUpdate").textContent =
-            "Riwayat berhasil dimuat";
-
-        }
-
-
-        renderCharts();
-
-        // Mulai menghitung interval sampel live
-        lastSampleAt = Date.now();
-
-        connectMQTT();
-
-      })
-
-      .catch(function(error) {
-
-        console.error(
-          "Gagal memuat riwayat:",
-          error
-        );
-
-        connectMQTT();
-
-      });
-
-  }
-
-
-  // =================================================
-  // 13. KONEKSI MQTT HIVEMQ
-  // =================================================
-
-  function connectMQTT() {
-
-    setStatus("warn", "Menghubungkan MQTT");
-
-    var client = mqtt.connect(
-
-      "wss://" +
-      MQTT_HOST +
-      ":" +
-      MQTT_WSS_PORT +
-      "/mqtt",
-
-      {
-
-        username: MQTT_USER,
-
-        password: MQTT_PASS,
-
-        clientId: CLIENT_ID,
-
-        clean: true,
-
-        reconnectPeriod: 3000,
-
-        connectTimeout: 10000
-
-      }
-
-    );
-
-
-    client.on("connect", function() {
-
-      setStatus("live", "Live");
-
-      client.subscribe(
-        MQTT_TOPIC,
-        function(error) {
-
-          if (error) {
-
-            setStatus("warn", "Gagal Subscribe");
-
-          }
-
-        }
-      );
-
-    });
-
-
-    client.on("reconnect", function() {
-
-      setStatus("warn", "Menyambung");
-
-    });
-
-
-    client.on("offline", function() {
-
-      setStatus("", "Offline");
-
-    });
-
-
-    client.on("close", function() {
-
-      setStatus("", "Terputus");
-
-    });
-
-
-    client.on("error", function() {
-
-      setStatus("", "Koneksi Error");
-
-    });
-
-
-    client.on("message", function(topic, message) {
-
-      try {
-
-        var payload = JSON.parse(
-          message.toString()
-        );
-
-        render(payload, false);
-
-      }
-
-      catch(error) {
-
-        console.error(
-          "Format MQTT tidak valid:",
-          error
-        );
-
-      }
-
-    });
-
-  }
-
-
-  // =================================================
-  // 14. EXPORT DATA EXCEL
-  // =================================================
-
-  el("exportExcelBtn").addEventListener(
-    "click",
-    function() {
-
-      if (history.length === 0) {
-
-        alert("Belum ada data untuk diekspor.");
-
-        return;
-
-      }
-
-
-      var dataToExport = history.map(
-        function(record) {
-
-          return {
-
-            "Waktu": new Date(
-              record.t
-            ).toLocaleString("id-ID"),
-
-            "pH Air": record.ph,
-
-            "DO (mg/L)": record.do,
-
-            "Saturasi (%)": record.saturation,
-
-            "Suhu DO (°C)": record.tempDO,
-
-            "Suhu DS18B20 (°C)": record.tempDs,
-
-            "Tegangan (V)": record.voltage,
-
-            "Arus (A)": record.current,
-
-            "Daya (W)": record.power,
-
-            "Energi (kWh)": record.energy,
-
-            "Frekuensi (Hz)": record.frequency,
-
-            "Faktor Daya": record.powerFactor,
-
-            "Status Relay": record.relay === 1
-              ? "ON"
-              : record.relay === 0
-                ? "OFF"
-                : "Tidak diketahui"
-
-          };
-
-        }
-      );
-
-
-      var workbook = XLSX.utils.book_new();
-
-      var worksheet =
-        XLSX.utils.json_to_sheet(dataToExport);
-
-      XLSX.utils.book_append_sheet(
-        workbook,
-        worksheet,
-        "Data Monitoring"
-      );
-
-      XLSX.writeFile(
-        workbook,
-        "Riset_Aerator_Lengkap.xlsx"
-      );
-
-    }
-  );
-
-
-  // =================================================
-  // 15. RESPONSIVE GRAFIK
-  // =================================================
-
-  window.addEventListener(
-    "resize",
-    function() {
-
-      renderCharts();
-
-    }
-  );
-
-
-  // =================================================
-  // 16. MULAI SISTEM
-  // =================================================
-
-  loadHistory();
-
+    if(history.length){var l=history[history.length-1];render(l,true);$("lastUpdate").textContent="Riwayat berhasil dimuat"}
+    renderCharts(true);lastSampleAt=Date.now();connectMQTT()
+  }).catch(function(e){if(id!==sess)return;console.error("Gagal memuat riwayat:",e);renderCharts(true);connectMQTT()})
+}
+
+// ===== 10. MQTT =====
+function connectMQTT(){
+  if(mqttClient)return;
+  if(typeof mqtt==="undefined"){setStatus("","Library MQTT gagal");return}
+  setStatus("warn","Menghubungkan");
+  var c=mqtt.connect("wss://"+MQTT_HOST+":"+MQTT_WSS_PORT+"/mqtt",{username:MQTT_USER,password:MQTT_PASS,clientId:CLIENT_ID,clean:true,reconnectPeriod:3000,connectTimeout:10000});
+  mqttClient=c;
+  c.on("connect",function(){setStatus("live","Live");c.subscribe(MQTT_TOPIC,{qos:0},function(e){if(e)setStatus("warn","Gagal subscribe")})});
+  c.on("reconnect",function(){setStatus("warn","Menyambung")});
+  c.on("offline",function(){setStatus("","Offline")});
+  c.on("close",function(){setStatus("","Terputus")});
+  c.on("error",function(){setStatus("","Koneksi error")});
+  c.on("message",function(t,m){try{render(JSON.parse(m.toString()),false)}catch(e){console.error("Format MQTT tidak valid:",e)}})
+}
+
+// ===== 11. EKSPOR EXCEL =====
+$("exportExcelBtn").addEventListener("click",function(){
+  if(!history.length)return toast("Belum ada data untuk diekspor.");
+  if(typeof XLSX==="undefined")return toast("Library Excel belum termuat. Periksa koneksi internet.");
+  var rows=history.map(function(i){return{"Waktu":new Date(i.t).toLocaleString("id-ID"),"pH":i.ph,"DO (mg/L)":i.do,"Saturasi (%)":i.saturation,"Suhu DO (°C)":i.tempDO,"Suhu DS18B20 (°C)":i.tempDS18B20,"Tegangan (V)":i.voltage,"Arus (A)":i.current,"Daya (W)":i.power,"Energi (kWh)":i.energy,"Frekuensi (Hz)":i.frequency,"Faktor Daya":i.powerFactor,"Status Relay":i.relay===1?"ON":(i.relay===0?"OFF":"Tidak diketahui")}});
+  var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),"Data Monitoring");
+  XLSX.writeFile(wb,"Riset_Aerator_Lengkap.xlsx");toast("File Excel diunduh")
+});
+
+var rz;window.addEventListener("resize",function(){clearTimeout(rz);rz=setTimeout(function(){if(started)renderCharts(false)},120)});
+
+// ===== TAB & SUB-TAB =====
+var TABS=document.querySelectorAll(".tab"),PANELS=document.querySelectorAll(".panel"),curTab=0;
+function showTab(i){
+  i=Math.max(0,Math.min(TABS.length-1,i));curTab=i;
+  TABS.forEach(function(b,j){b.classList.toggle("act",j===i);b.setAttribute("aria-selected",j===i)});
+  PANELS.forEach(function(p,j){p.classList.toggle("on",j===i)});
+  window.scrollTo(0,0);
+  requestAnimationFrame(function(){if(started)renderCharts(false)})
+}
+TABS.forEach(function(b,i){b.addEventListener("click",function(){showTab(i)})});
+$("logoutBtn").addEventListener("click",function(){showTab(0)});
+
+// Geser kiri/kanan untuk pindah tab (tidak aktif di slider, grafik, tombol)
+(function(){
+  var sx=0,sy=0,ok=false,m=document.querySelector("main");
+  m.addEventListener("touchstart",function(e){var t=e.touches[0];sx=t.clientX;sy=t.clientY;ok=!e.target.closest("input,canvas,button")},{passive:true});
+  m.addEventListener("touchend",function(e){
+    if(!ok)return;var t=e.changedTouches[0],dx=t.clientX-sx,dy=t.clientY-sy;
+    if(Math.abs(dx)>70&&Math.abs(dx)>Math.abs(dy)*1.8)showTab(curTab+(dx<0?1:-1))
+  },{passive:true})
 })();
 
-</script>
+// Sub-tab set point (pH / Suhu / DO)
+(function(){
+  var st=$("spTabs"),gs=$("sg").children;
+  gs[0].classList.add("on");
+  st.addEventListener("click",function(e){
+    var b=e.target.closest("button");if(!b)return;var i=+b.dataset.i;
+    [].forEach.call(st.children,function(x,j){x.classList.toggle("act",j===i)});
+    [].forEach.call(gs,function(g,j){g.classList.toggle("on",j===i)})
+  })
+})();
 
+// ===== 12. LOGIN & SESI =====
+var AUTH_USER="AERATOR1",AUTH_PASS="UTM123",AUTH_KEY="aeratorAuth",MAX_TRY=5,LOCK_MS=30000,fails=0,lockUntil=0;
+var root=document.documentElement;
+function isAuthed(){return root.classList.contains("authed")}
+function saveAuth(v){try{if(v)sessionStorage.setItem(AUTH_KEY,"1");else sessionStorage.removeItem(AUTH_KEY)}catch(e){}}
+function loginMsg(t){$("lgErr").textContent=t}
+function shake(){var c=$("lgCard");c.classList.remove("shake");void c.offsetWidth;c.classList.add("shake")}
+
+function startApp(){
+  if(started)return;
+  started=true;sess++;
+  document.body.classList.add("loading");
+  loadHistory()
+}
+function stopApp(){
+  started=false;sess++;
+  try{if(mqttClient)mqttClient.end(true)}catch(e){}
+  mqttClient=null;history=[];lastSampleAt=0;settingsDirty=false;pendingSettings=null;
+  document.querySelectorAll("[data-k]").forEach(function(e){e.textContent="--";e._v=null});
+  CHARTS.forEach(function(c){CH[c[0]].hi=-1});
+  setStatus("warn","Sinkronisasi");$("lastUpdate").textContent="Mengambil riwayat data...";
+  $("relayModeBadge").textContent="Mode belum diketahui.";$("settingsMessage").textContent="Menunggu koneksi ESP32.";$("settingsMessage").className="msg"
+}
+function enter(){saveAuth(true);root.classList.add("authed");window.scrollTo(0,0);startApp()}
+function leave(){saveAuth(false);root.classList.remove("authed");stopApp();$("lgUser").value="";$("lgPass").value="";loginMsg("");fails=0}
+
+$("loginForm").addEventListener("submit",function(e){
+  e.preventDefault();
+  var now=Date.now();
+  if(now<lockUntil){loginMsg("Terlalu banyak percobaan. Coba lagi dalam "+Math.ceil((lockUntil-now)/1000)+" detik.");shake();return}
+  var u=$("lgUser").value.trim().toUpperCase(),p=$("lgPass").value,btn=$("lgBtn");
+  if(!u||!p){loginMsg("Username dan password wajib diisi.");shake();return}
+  btn.disabled=true;btn.classList.add("busy");loginMsg("");
+  setTimeout(function(){
+    btn.disabled=false;btn.classList.remove("busy");
+    if(u===AUTH_USER&&p===AUTH_PASS){fails=0;$("lgPass").value="";enter()}
+    else{
+      fails++;
+      if(fails>=MAX_TRY){fails=0;lockUntil=Date.now()+LOCK_MS;loginMsg("Terlalu banyak percobaan. Coba lagi dalam "+(LOCK_MS/1000)+" detik.")}
+      else loginMsg("Username atau password salah. Sisa percobaan: "+(MAX_TRY-fails)+".");
+      $("lgPass").value="";$("lgPass").focus();shake()
+    }
+  },450)
+});
+$("eyeBtn").addEventListener("click",function(){
+  var p=$("lgPass"),show=p.type==="password";
+  p.type=show?"text":"password";
+  this.setAttribute("aria-label",show?"Sembunyikan password":"Tampilkan password");
+  $("eyeUse").setAttribute("href",show?"#i-eye-off":"#i-eye")
+});
+$("lgPass").addEventListener("keyup",function(e){$("lgCaps").hidden=!(e.getModifierState&&e.getModifierState("CapsLock"))});
+$("lgPass").addEventListener("blur",function(){$("lgCaps").hidden=true});
+$("logoutBtn").addEventListener("click",leave);
+
+updateSliderLabels();
+if(isAuthed())startApp();
+})();
+</script>
 </body>
 </html>
