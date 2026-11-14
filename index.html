@@ -557,6 +557,27 @@ $("dn").addEventListener("click",function(){$("dlg").close()});
 $("dy").addEventListener("click",function(){$("dlg").close();setRelay("manual",false)});
 
 // ===== 6. RIWAYAT =====
+// Kirim lima parameter utama ke Google Sheets.
+// Data dikirim mengikuti interval pencatatan SAMPLE_INTERVAL_MS.
+function sendToGoogleSheets(d){
+  var data={
+    do:d.do,
+    tempDS18B20:d.tempDS18B20,
+    ph:d.ph,
+    current:d.current,
+    power:d.power
+  };
+
+  fetch(GAS_URL,{
+    method:"POST",
+    mode:"no-cors",
+    headers:{"Content-Type":"text/plain;charset=utf-8"},
+    body:JSON.stringify(data)
+  }).catch(function(error){
+    console.error("Gagal mengirim data ke Google Sheets:",error);
+  });
+}
+
 function pushHistory(d,t){
   history.push({t:t,ph:d.ph,do:d.do,saturation:d.saturation,tempDO:d.tempDO,tempDS18B20:d.tempDS18B20,voltage:d.voltage,current:d.current,power:d.power,energy:d.energy,frequency:d.frequency,powerFactor:d.powerFactor,relay:d.relay});
   if(history.length>HISTORY_LEN)history.shift()
@@ -603,7 +624,12 @@ function render(payload,isHistory){
 
   if(!isHistory){
     var now=Date.now();
-    if(lastSampleAt===0||now-lastSampleAt>=SAMPLE_INTERVAL_MS){lastSampleAt=now;pushHistory(d,now);renderCharts(false)}
+    if(lastSampleAt===0||now-lastSampleAt>=SAMPLE_INTERVAL_MS){
+      lastSampleAt=now;
+      pushHistory(d,now);
+      sendToGoogleSheets(d);
+      renderCharts(false);
+    }
     $("lastUpdate").textContent="Data langsung · "+new Date().toLocaleTimeString("id-ID")
   }
 }
@@ -698,7 +724,16 @@ function connectMQTT(){
 $("exportExcelBtn").addEventListener("click",function(){
   if(!history.length)return toast("Belum ada data untuk diekspor.");
   if(typeof XLSX==="undefined")return toast("Library Excel belum termuat. Periksa koneksi internet.");
-  var rows=history.map(function(i){return{"Waktu":new Date(i.t).toLocaleString("id-ID"),"pH":i.ph,"DO (mg/L)":i.do,"Saturasi (%)":i.saturation,"Suhu DO (°C)":i.tempDO,"Suhu DS18B20 (°C)":i.tempDS18B20,"Tegangan (V)":i.voltage,"Arus (A)":i.current,"Daya (W)":i.power,"Energi (kWh)":i.energy,"Frekuensi (Hz)":i.frequency,"Faktor Daya":i.powerFactor,"Status Relay":i.relay===1?"ON":(i.relay===0?"OFF":"Tidak diketahui")}});
+  var rows=history.map(function(i){
+    return {
+      "Waktu":new Date(i.t).toLocaleString("id-ID"),
+      "DO (mg/L)":i.do,
+      "Suhu Air (°C)":i.tempDS18B20,
+      "pH":i.ph,
+      "Arus (A)":i.current,
+      "Daya (W)":i.power
+    };
+  });
   var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),"Data Monitoring");
   XLSX.writeFile(wb,"Riset_Aerator_Lengkap.xlsx");toast("File Excel diunduh")
 });
